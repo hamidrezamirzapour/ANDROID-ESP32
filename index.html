@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TMAS - Temperature Monitoring & Acquisition System</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#111317">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/jpeg" href="logo3.jpg">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #111317; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 14px; padding-bottom: 30px; }
+        header { display: flex; justify-content: space-between; align-items: center; background: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; }
+        .brand-container { display: flex; align-items: center; gap: 10px; }
+        .brand-logo { width: 44px; height: 32px; object-fit: contain; border-radius: 4px; background: #ffffff; padding: 2px; }
+        .brand-text h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1; }
+        .brand-text span { font-size: 0.65rem; font-weight: 700; color: #00d2d3; letter-spacing: 1px; }
+        .status-badge { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 20px; background: #252932; color: #747d8c; display: flex; align-items: center; gap: 6px; }
+        .status-badge.connected { background: rgba(16, 172, 132, 0.15); color: #10ac84; border: 1px solid #10ac84; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .sensor-card { background: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); }
+        .card-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+        .sensor-name { font-size: 0.85rem; font-weight: 600; color: #8a94a6; text-transform: uppercase; letter-spacing: 0.5px; }
+        .sensor-val { font-size: 1.7rem; font-weight: 700; font-family: "Consolas", "Courier New", monospace; }
+        .chart-box { position: relative; height: 110px; width: 100%; }
+        footer { text-align: center; font-size: 0.72rem; color: #57606f; margin-top: 18px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand-container">
+            <img src="logo3.jpg" alt="Logo" class="brand-logo" onerror="this.style.display='none'">
+            <div class="brand-text">
+                <h1>TMAS</h1>
+                <span>MICROTESLA</span>
+            </div>
+        </div>
+        <div id="conn-badge" class="status-badge">
+            <span class="status-dot"></span>
+            <span id="conn-text">Connecting...</span>
+        </div>
+    </header>
+    <div class="sensor-card">
+        <div class="card-top">
+            <span class="sensor-name">Sensor 1</span>
+            <span id="s1-temp" class="sensor-val" style="color: #00d2d3;">--.- &deg;C</span>
+        </div>
+        <div class="chart-box"><canvas id="chart1"></canvas></div>
+    </div>
+    <div class="sensor-card">
+        <div class="card-top">
+            <span class="sensor-name">Sensor 2</span>
+            <span id="s2-temp" class="sensor-val" style="color: #10ac84;">--.- &deg;C</span>
+        </div>
+        <div class="chart-box"><canvas id="chart2"></canvas></div>
+    </div>
+    <div class="sensor-card">
+        <div class="card-top">
+            <span class="sensor-name">Sensor 3</span>
+            <span id="s3-temp" class="sensor-val" style="color: #ff6b6b;">--.- &deg;C</span>
+        </div>
+        <div class="chart-box"><canvas id="chart3"></canvas></div>
+    </div>
+    <footer>TMAS &bull; MicroTesla Industrial Acquisition &bull; WebSocket over WSS</footer>
+    <script>
+        const POINTS = 35;
+        function buildChart(canvasId, lineColor) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels: Array(POINTS).fill(''), datasets: [{ data: Array(POINTS).fill(null), borderColor: lineColor, borderWidth: 2, pointRadius: 0, tension: 0.35, fill: false }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { grid: { color: '#252932', drawBorder: false }, ticks: { color: '#57606f', font: { size: 9, family: 'monospace' }, maxTicksLimit: 4 } }
+                    }
+                }
+            });
+        }
+        const c1 = buildChart('chart1', '#00d2d3');
+        const c2 = buildChart('chart2', '#10ac84');
+        const c3 = buildChart('chart3', '#ff6b6b');
+        function updateChart(chart, val) {
+            chart.data.datasets[0].data.shift();
+            chart.data.datasets[0].data.push(val);
+            chart.update();
+        }
+        const brokerHost = "broker.hivemq.com";
+        const brokerPort = 8884;
+        const brokerPath = "/mqtt";
+        const topic = "microtesla/tmas/data";
+        const clientId = "tmas_web_" + Math.random().toString(16).substring(2, 10);
+        const client = new Paho.MQTT.Client(brokerHost, brokerPort, brokerPath, clientId);
+        const connBadge = document.getElementById('conn-badge');
+        const connText = document.getElementById('conn-text');
+        client.onConnectionLost = (resp) => {
+            connBadge.className = 'status-badge';
+            connText.innerText = 'Disconnected';
+            setTimeout(connectMQTT, 3000);
+        };
+        client.onMessageArrived = (msg) => {
+            try {
+                const payload = JSON.parse(msg.payloadString);
+                if (payload.s1 !== undefined) { document.getElementById('s1-temp').innerText = payload.s1.toFixed(2) + " °C"; updateChart(c1, payload.s1); }
+                if (payload.s2 !== undefined) { document.getElementById('s2-temp').innerText = payload.s2.toFixed(2) + " °C"; updateChart(c2, payload.s2); }
+                if (payload.s3 !== undefined) { document.getElementById('s3-temp').innerText = payload.s3.toFixed(2) + " °C"; updateChart(c3, payload.s3); }
+            } catch (err) { console.error("Payload parse error:", err); }
+        };
+        function connectMQTT() {
+            connText.innerText = 'Connecting...';
+            client.connect({
+                useSSL: true, timeout: 5, keepAliveInterval: 30, cleanSession: true,
+                onSuccess: () => { connBadge.className = 'status-badge connected'; connText.innerText = '● Live Online'; client.subscribe(topic); },
+                onFailure: (err) => { connBadge.className = 'status-badge'; connText.innerText = 'Failed, Retrying'; setTimeout(connectMQTT, 3000); }
+            });
+        }
+        connectMQTT();
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+    </script>
+</body>
+</html>
