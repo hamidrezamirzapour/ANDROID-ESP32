@@ -44,3 +44,9 @@ jobs:
         name: TMAS-Debug-APK
         path: app/build/outputs/apk/debug/*.apk
         retention-days: 7
+
+            - name: Fix Missing Launcher Icon in Manifest
+      run: |
+        sed -i 's/@mipmap\/ic_launcher/@drawable\/logo3/g' app/src/main/AndroidManifest.xml
+        sed -i '/android:roundIcon/d' app/src/main/AndroidManifest.xml
+
