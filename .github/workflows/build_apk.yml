@@ -35,6 +35,9 @@ jobs:
           sed -i 's/@mipmap\/ic_launcher/@drawable\/logo3/g' app/src/main/AndroidManifest.xml
           sed -i '/android:roundIcon/d' app/src/main/AndroidManifest.xml
 
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper
+
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
