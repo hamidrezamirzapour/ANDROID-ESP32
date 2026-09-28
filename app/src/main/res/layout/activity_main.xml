@@ -1,206 +1,184 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="#121212"
-    android:fillViewport="true">
+    android:padding="12dp">
 
-    <LinearLayout
+    <!-- Header Card -->
+    <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_marginBottom="8dp"
+        app:cardBackgroundColor="#1E1E1E"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="4dp">
 
-        <!-- Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageView
-                android:id="@+id/imgLogo"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:src="@drawable/logo3" />
+            android:orientation="vertical"
+            android:padding="12dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:text="TMAS Monitor"
+                android:text="TMAS Industrial Monitor"
                 android:textColor="#FFFFFF"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textStyle="bold" />
-        </LinearLayout>
-
-        <!-- Network Settings -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/etIp"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="2"
-                android:background="#1E1E1E"
-                android:hint="192.168.4.1"
-                android:padding="8dp"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#757575"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/etPort"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:background="#1E1E1E"
-                android:hint="8888"
-                android:inputType="number"
-                android:padding="8dp"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#757575"
-                android:textSize="14sp" />
-
-            <Button
-                android:id="@+id/btnConnect"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:text="Connect" />
-        </LinearLayout>
-
-        <!-- Status Info -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tvStatus"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Status: Disconnected"
-                android:textColor="#B0BEC5"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/tvRecords"
+                android:id="@+id/tvConnStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Records: 0"
-                android:textColor="#B0BEC5"
+                android:layout_marginTop="4dp"
+                android:text="Disconnected"
+                android:textColor="#FF5252"
                 android:textSize="13sp" />
         </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
-        <!-- Sensor 1 Card -->
-        <androidx.cardview.widget.CardView
+    <!-- Sensor 1 Card -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="6dp"
+        app:cardBackgroundColor="#1E1E1E"
+        app:cardCornerRadius="10dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            app:cardBackgroundColor="#1E1E1E"
-            app:cardCornerRadius="8dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="8dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp">
+                android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/tvTemp1"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Sensor 1: -- °C"
-                    android:textColor="#FF5252"
-                    android:textSize="16sp"
+                    android:layout_weight="1"
+                    android:text="Sensor 1 (T1)"
+                    android:textColor="#00E5FF"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/chart1"
-                    android:layout_width="match_parent"
-                    android:layout_height="140dp"
-                    android:layout_marginTop="8dp" />
+                <TextView
+                    android:id="@+id/tvSensor1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0.00 °C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
-        <!-- Sensor 2 Card -->
-        <androidx.cardview.widget.CardView
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chart1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Sensor 2 Card -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="6dp"
+        app:cardBackgroundColor="#1E1E1E"
+        app:cardCornerRadius="10dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#1E1E1E"
-            app:cardCornerRadius="8dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="8dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp">
+                android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/tvTemp2"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Sensor 2: -- °C"
-                    android:textColor="#448AFF"
-                    android:textSize="16sp"
+                    android:layout_weight="1"
+                    android:text="Sensor 2 (T2)"
+                    android:textColor="#00E676"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/chart2"
-                    android:layout_width="match_parent"
-                    android:layout_height="140dp"
-                    android:layout_marginTop="8dp" />
+                <TextView
+                    android:id="@+id/tvSensor2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0.00 °C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
-        <!-- Sensor 3 Card -->
-        <androidx.cardview.widget.CardView
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chart2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Sensor 3 Card -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:cardBackgroundColor="#1E1E1E"
+        app:cardCornerRadius="10dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#1E1E1E"
-            app:cardCornerRadius="8dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="8dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp">
+                android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/tvTemp3"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Sensor 3: -- °C"
-                    android:textColor="#69F0AE"
-                    android:textSize="16sp"
+                    android:layout_weight="1"
+                    android:text="Sensor 3 (T3)"
+                    android:textColor="#FFEA00"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/chart3"
-                    android:layout_width="match_parent"
-                    android:layout_height="140dp"
-                    android:layout_marginTop="8dp" />
+                <TextView
+                    android:id="@+id/tvSensor3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0.00 °C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
-        <!-- Export Button -->
-        <Button
-            android:id="@+id/btnExport"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Export CSV" />
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chart3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
-    </LinearLayout>
-</ScrollView>
+</LinearLayout>
