@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Android CI
 
 on:
   push:
@@ -12,35 +12,325 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
 
-      - name: Generate Gradle Wrapper (Version 8.7)
-        run: gradle wrapper --gradle-version 8.7
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
 
-      - name: Patch Manifest and Layout Errors
-        run: |
-          # 1. جایگزینی آیکون با فایل موجود و حذف راند آیکون
-          sed -i 's/@mipmap\/ic_launcher/@drawable\/logo3/g' app/src/main/AndroidManifest.xml
-          sed -i '/android:roundIcon/d' app/src/main/AndroidManifest.xml
-          
-          # 2. اصلاح غلط تایپی در فایل لایه‌بندی
-          sed -i 's/android:A_height/android:layout_height/g' app/src/main/res/layout/activity_main.xml
+    - name: Generate Gradle Wrapper
+      run: gradle wrapper --gradle-version 8.7
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Debug APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: TMAS-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: TMAS-app-debug
+        path: app/build/outputs/apk/debug/*.apk
+
+---
+
+### گام ۲: اصلاح `app/build.gradle`
+فایل `app/build.gradle` را باز کرده و در انتهای بلوک `dependencies`، کتابخانه Coroutines را اضافه کنید:
+
+gradle
+dependencies {
+    : ساخت یا ویرایش فایل GitHub Workflow
+در مخزن گیت‌هاب (یا لوکال)، مسیر زیر را باز کنید:
+`.github/workflows/android.yml`
+
+محتوای آن را دقیقاً به شکل زیر قرار دهید (این کار مشکل نبودن `gradlew` و ناهماهنگی نسخه‌ها را برطرف می‌کند):
+```yaml
+name: Android CI
+
+on:
+  push:
+branches: [ "main", "master" ]
+  pull_request:
+branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+runs-on: ubuntu-latest
+
+steps:
+- name: Checkout code
+uses: actions/checkout@v4
+
+- name: Set up JDK 17
+uses: actions/setup-java@v4
+with:
+java-version: '17'
+distribution: 'temurin'
+
+- name: Setup Gradle
+uses: gradle/actions/setup-gradle@v3
+
+- name: Generate Gradle Wrapper
+run: gradle wrapper --gradle-version 8.7
+
+- name: Grant execute permission for gradlew
+run: chmod +x gradlew
+
+- name: Build with Gradle
+run: ./gradlew assembleDebug --no-daemon
+
+- name: Upload Debug APK
+uses: actions/upload-artifact@v4
+with:
+name: TMAS-app-debug
+path: app/build/outputs/apk/debug/*.apk
+
+---
+
+### گام ۲: اصلاح `app/build.gradle`
+فایل `app/build.gradle` را باز کرده و در انتهای بلوک `dependencies`، کتابخانه Coroutines را اضافه کنید:
+
+gradle
+dependencies {
+implementation 'androidx.core:core-ktx:1.12.0'
+implementation 'androidx.appcompat:appcompat:1.6.1'
+implementation 'com.google.android.material:material:1.11.0'
+implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+implementation 'org.eclipse.paho:### گام ۴: اصلاح لایه‌بندی `app/src/main/res/layout/activity_main.xml`
+خطای فایل لاگ شما (`A_height`) در این فایل قرار داشت. کل فایل را با این کد کامل جایگزین کنید:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121820"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- پنل اتصال -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1a2332"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/etIp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="2"
+                        android:text="192.168.4.1"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#888888"
+                        android:backgroundTint="#00d2d3"
+                        android:inputType="textUri" />
+
+                    <match_parent"
+    android:background="#121820"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- پنل اتصال -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1a2332"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/etIp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="2"
+                        android:text="192.168.4.1"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#888888"
+                        android:backgroundTint="#00d2d3"
+                        android:inputType="textUri" />
+
+                    <EditText
+                        android:id="@+id/etPort"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="8888"
+                        android:textColor="#FFFFFF"
+                        android:backgroundTint="#00d2d3"
+                        android:inputType="number"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+android:layout_height="wrap_content"
+                    android:text="Records: 0"
+                    android:textColor="#888888"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Sensor 1 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1a2332"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sensor 1"
+                    android:textColor="#00d2d3"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tvTemp1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--.- °C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="36sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="8dp" />
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chart1"
+                    android:layout_width="match_parent"
+                    android:layout_height="150dp"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Sensor 2 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1a2332"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sensor 2"
+                    android:textColor="#2ecc71"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tvTemp2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--.- °C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="36sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="8dp" />
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chart2"
+                    android:layout_width="match_parent"
+                    android:layout_height="150dp"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Sensor 3 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1a2332"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sensor 3"
+                    android:textColor="#e74c3c"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tvTemp3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--.- °C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="36sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="8dp" />
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chart3"
+                    android:layout_width="match_parent"
+                    android:layout_height="150dp"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</ScrollView>
