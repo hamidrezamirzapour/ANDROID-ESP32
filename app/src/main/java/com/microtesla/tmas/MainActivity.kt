@@ -1,5 +1,6 @@
 package com.microtesla.tmas
 
+import com.microtesla.tmas.R
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.TextView
