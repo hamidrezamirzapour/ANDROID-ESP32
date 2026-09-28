@@ -76,11 +76,36 @@
                 android:text="Connect" />
         </LinearLayout>
 
+        <!-- Status Info -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Status: Disconnected"
+                android:textColor="#B0BEC5"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvRecords"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Records: 0"
+                android:textColor="#B0BEC5"
+                android:textSize="13sp" />
+        </LinearLayout>
+
         <!-- Sensor 1 Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="14dp"
             app:cardBackgroundColor="#1E1E1E"
             app:cardCornerRadius="8dp">
 
@@ -91,7 +116,7 @@
                 android:padding="12dp">
 
                 <TextView
-                    android:id="@+id/tvS1"
+                    android:id="@+id/tvTemp1"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Sensor 1: -- °C"
@@ -100,7 +125,7 @@
                     android:textStyle="bold" />
 
                 <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/chartS1"
+                    android:id="@+id/chart1"
                     android:layout_width="match_parent"
                     android:layout_height="140dp"
                     android:layout_marginTop="8dp" />
@@ -122,7 +147,7 @@
                 android:padding="12dp">
 
                 <TextView
-                    android:id="@+id/tvS2"
+                    android:id="@+id/tvTemp2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Sensor 2: -- °C"
@@ -131,7 +156,7 @@
                     android:textStyle="bold" />
 
                 <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/chartS2"
+                    android:id="@+id/chart2"
                     android:layout_width="match_parent"
                     android:layout_height="140dp"
                     android:layout_marginTop="8dp" />
@@ -153,7 +178,7 @@
                 android:padding="12dp">
 
                 <TextView
-                    android:id="@+id/tvS3"
+                    android:id="@+id/tvTemp3"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Sensor 3: -- °C"
@@ -162,7 +187,7 @@
                     android:textStyle="bold" />
 
                 <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/chartS3"
+                    android:id="@+id/chart3"
                     android:layout_width="match_parent"
                     android:layout_height="140dp"
                     android:layout_marginTop="8dp" />
@@ -171,7 +196,7 @@
 
         <!-- Export Button -->
         <Button
-            android:id="@+id/btnExportCsv"
+            android:id="@+id/btnExport"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
