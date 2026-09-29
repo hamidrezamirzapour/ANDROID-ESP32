@@ -63,7 +63,7 @@
                 android:layout_centerVertical="true"
                 android:orientation="vertical"
                 android:gravity="end">
-                
+
                 <TextView
                     android:id="@+id/tvConnStatus"
                     android:layout_width="wrap_content"
@@ -82,54 +82,59 @@
                     android:id="@+id/btnSettings"
                     android:layout_width="wrap_content"
                     android:layout_height="35dp"
-                    androiddp"
-                android:layout_toEndOf="@id/imgLogo"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="TMAS MONITOR"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="MICROTESLA ACQUISITION"
-                    android:textColor="#00D2D3"
-                    android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:layout_marginTop="6dp"
+                    android:backgroundTint="#00D2D3"
+                    android:text="تنظیمات"
+                    android:textColor="#111317"
+                    android:textSize="11sp" />
             </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:orientation="vertical"
-                android:gravity="end">
-                
-                <TextView
-                    android:id="@+id/tvConnStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="#252932"
-                    android:paddingStart="10dp"
-                    android:paddingTop="5dp"
-                    android:paddingEnd="10dp"
-                    android:paddingBottom="5dp"
-                    android:text="Connecting..."
-                    android:textColor="#747D8C"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+        </RelativeLayout>
+    </androidx.cardview.widget.CardView>
 
-                <Button
-                    android:id="@+id/btnSettings"
-                    android:layout_width="wrap_content"
-                    android:layout_height="35dp"
-                    android                            android:fontFamily="monospace"
+    <!-- Scrollable Sensors Area -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Sensor 1 Card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                app:cardBackgroundColor="#1A1D24"
+                app:cardCornerRadius="10dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SENSOR 1"
+                            android:textColor="#8A94A6"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvSensor1"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentEnd="true"
+                            android:fontFamily="monospace"
                             android:text="--.- °C"
                             android:textColor="#00D2D3"
                             android:textSize="20sp"
@@ -144,6 +149,7 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- Sensor 2 Card -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -189,6 +195,7 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- Sensor 3 Card -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -233,6 +240,8 @@
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
+
         </LinearLayout>
     </ScrollView>
+
 </LinearLayout>
