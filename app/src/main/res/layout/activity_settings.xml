@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#111317">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="تنظیمات مدیران" android:textColor="#00D2D3" android:textSize="18sp" android:textStyle="bold"/>
+        
+        <EditText android:id="@+id/etManager1" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="شماره مدیر 1 (الزامی)" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="phone"/>
+        
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <CheckBox android:id="@+id/cbManager2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="فعال" android:textColor="#FFF"/>
+            <EditText android:id="@+id/etManager2" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="شماره مدیر 2" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="phone"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <CheckBox android:id="@+id/cbManager3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="فعال" android:textColor="#FFF"/>
+            <EditText android:id="@+id/etManager3" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="شماره مدیر 3" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="phone"/>
+        </LinearLayout>
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="محدوده مجاز سنسورها (دما)" android:textColor="#00D2D3" android:textSize="18sp" android:textStyle="bold" android:layout_marginTop="24dp"/>
+        
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="سنسور ۱:" android:textColor="#FFF" android:layout_marginEnd="8dp"/>
+            <EditText android:id="@+id/etS1Min" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداقل" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="numberDecimal|numberSigned"/>
+            <EditText android:id="@+id/etS1Max" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداکثر" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="numberDecimal|numberSigned"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="سنسور ۲:" android:textColor="#FFF" android:layout_marginEnd="8dp"/>
+            <EditText android:id="@+id/etS2Min" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداقل" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="numberDecimal|numberSigned"/>
+            <EditText android:id="@+id/etS2Max" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداکثر" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="numberDecimal|numberSigned"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="سنسور ۳:" android:textColor="#FFF" android:layout_marginEnd="8dp"/>
+            <EditText android:id="@+id/etS3Min" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداقل" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="numberDecimal|numberSigned"/>
+            <EditText android:id="@+id/etS3Max" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداکثر" android:textColorHint="#8A94A6" android:textColor="#FFF" android:inputType="numberDecimal|numberSigned"/>
+        </LinearLayout>
+
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="ذخیره تنظیمات" android:backgroundTint="#00D2D3" android:layout_marginTop="30dp"/>
+    </LinearLayout>
+</ScrollView>
