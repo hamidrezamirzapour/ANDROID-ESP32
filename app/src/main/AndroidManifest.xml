@@ -17,7 +17,7 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/logo3"
         android:supportsRtl="true"
-        android:theme="@style/Theme.TMAS"
+        android:theme="@style/Theme.TMASMonitor"
         tools:targetApi="31">
 
         <activity
