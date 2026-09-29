@@ -1,11 +1,11 @@
 package com.microtesla.tmas
 
-import com.microtesla.tmas.R
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -25,9 +25,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chart2: LineChart
     private lateinit var chart3: LineChart
 
-    private val entries1 = ArrayList<Entry>()
-    private val entries2 = ArrayList<Entry>()
-    private val entries3 = ArrayList<Entry>()
     private var timeIndex = 0f
 
     @Volatile
@@ -61,13 +58,39 @@ class MainActivity : AppCompatActivity() {
     private fun setupChart(chart: LineChart, color: Int) {
         chart.description.isEnabled = false
         chart.setTouchEnabled(false)
+        chart.isDragEnabled = false
+        chart.setScaleEnabled(false)
+        chart.setPinchZoom(false)
+        chart.setDrawGridBackground(false)
         chart.legend.isEnabled = false
-        chart.axisRight.isEnabled = false
-        chart.xAxis.textColor = Color.LTGRAY
-        chart.axisLeft.textColor = Color.LTGRAY
-        chart.xAxis.setDrawGridLines(false)
-        chart.axisLeft.setDrawGridLines(true)
-        chart.axisLeft.gridColor = Color.DKGRAY
+
+        // تنظیم محور X (افقی)
+        val xAxis = chart.xAxis
+        xAxis.position = XAxis.XAxisPosition.BOTTOM // انتقال به پایین
+        xAxis.setDrawGridLines(false)
+        xAxis.setDrawLabels(false) // حذف اعداد نامفهوم برای پیوستگی نوار قلب
+        xAxis.textColor = Color.LTGRAY
+
+        // تنظیم محور Y (سمت چپ)
+        val leftAxis = chart.axisLeft
+        leftAxis.textColor = Color.LTGRAY
+        leftAxis.setGridColor(Color.parseColor("#333333"))
+        leftAxis.setDrawZeroLine(false)
+        leftAxis.setStartAtZero(false)
+
+        chart.axisRight.isEnabled = false // غیرفعال کردن محور سمت راست
+
+        // ساخت مجموعه داده اولیه خالی
+        val dataSet = LineDataSet(ArrayList(), "Temp").apply {
+            this.color = color
+            lineWidth = 2.5f
+            setDrawCircles(false)       // عدم نمایش دایره برای هر نقطه
+            setDrawValues(false)        // عدم چاپ عدد دما روی خط نمودار
+            mode = LineDataSet.Mode.LINEAR // حالت خطی برای رفع مشکل باگ گرافیکی CUBIC
+        }
+
+        chart.data = LineData(dataSet)
+        chart.invalidate()
     }
 
     private fun startTcpClient() {
@@ -137,32 +160,32 @@ class MainActivity : AppCompatActivity() {
                 tvSensor2.text = String.format("%.2f °C", t2)
                 tvSensor3.text = String.format("%.2f °C", t3)
 
-                addEntry(chart1, entries1, t1, Color.CYAN)
-                addEntry(chart2, entries2, t2, Color.GREEN)
-                addEntry(chart3, entries3, t3, Color.YELLOW)
+                // اضافه کردن نقاط به نمودار
+                addEntryToChart(chart1, t1, timeIndex)
+                addEntryToChart(chart2, t2, timeIndex)
+                addEntryToChart(chart3, t3, timeIndex)
+                
+                // افزایش اندیس زمان تا نمودار به سمت راست حرکت کند
+                timeIndex += 1f
             }
         } catch (_: Exception) {
             // Ignore corrupted packets
         }
     }
 
-    private fun addEntry(chart: LineChart, entries: ArrayList<Entry>, value: Float, color: Int) {
-        entries.add(Entry(timeIndex, value))
-        if (entries.size > 30) {
-            entries.removeAt(0)
-        }
-
-        val dataSet = LineDataSet(entries, "Temp").apply {
-            this.color = color
-            setDrawCircles(false)
-            lineWidth = 2f
-            setDrawValues(false)
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-        }
-
-        chart.data = LineData(dataSet)
+    private fun addEntryToChart(chart: LineChart, value: Float, currentIndex: Float) {
+        val data = chart.data ?: return
+        var set = data.getDataSetByIndex(0)
+        
+        // اضافه کردن نقطه جدید به نمودار (X: زمان ، Y: دما)
+        data.addEntry(Entry(currentIndex, value), 0)
+        
+        data.notifyDataChanged()
         chart.notifyDataSetChanged()
-        chart.invalidate()
+
+        // نمایش 40 نقطه اخیر و اسکرول به صورت پیوسته (شبیه نوار قلب)
+        chart.setVisibleXRangeMaximum(40f)
+        chart.moveViewToX(currentIndex)
     }
 
     override fun onDestroy() {
