@@ -1,36 +1,42 @@
 package com.microtesla.tmas
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
-import android.text.InputType
-import android.util.Log
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
+import android.telephony.SmsManager
+import android.view.Menu
+import android.view.MenuItem
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.github.mikephil.charting.charts.LineChart
-import com.github.mikephil.charting.components.Description
+import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.MqttCallback
-import org.eclipse.paho.client.mqttv3.MqttClient
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions
-import org.eclipse.paho.client.mqttv3.MqttMessage
+import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var tvStatus: TextView
-    private lateinit var tvTemp1: TextView
-    private lateinit var tvTemp2: TextView
-    private lateinit var tvTemp3: TextView
-    private lateinit var btnSettings: ImageView
+    companion object {
+        var lastTemp1: Float = 0f
+        var lastTemp2: Float = 0f
+        var lastTemp3: Float = 0f
+    }
+
+    private lateinit var tvConnStatus: TextView
+    private lateinit var tvSensor1: TextView
+    private lateinit var tvSensor2: TextView
+    private lateinit var tvSensor3: TextView
 
     private lateinit var chart1: LineChart
     private lateinit var chart2: LineChart
@@ -41,333 +47,258 @@ class MainActivity : AppCompatActivity() {
     private var chartIndex2 = 0f
     private var chartIndex3 = 0f
 
-    // Configurable MQTT Parameters
-    private var brokerHost = "broker.hivemq.com"
-    private var brokerPort = "1883"
-    private var brokerTopic = "microtesla/tmas/data"
-
-    private val clientId = "TMAS_Android_" + System.currentTimeMillis()
     private var mqttClient: MqttClient? = null
+    private val broker = "tcp://broker.hivemq.com:1883"
+    private val topic = "microtesla/tmas/data"
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var lastSmsTimeS1 = 0L
+    private var lastSmsTimeS2 = 0L
+    private var lastSmsTimeS3 = 0L
+    private val SMS_COOLDOWN = 60000L // وقفه ۶۰ ثانیه ای برای جلوگیری از رگبار پیامک
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Load saved preferences
-        val prefs = getSharedPreferences("TMAS_PREFS", MODE_PRIVATE)
-        brokerHost = prefs.getString("broker_host", "broker.hivemq.com") ?: "broker.hivemq.com"
-        brokerPort = prefs.getString("broker_port", "1883") ?: "1883"
-        brokerTopic = prefs.getString("broker_topic", "microtesla/tmas/data") ?: "microtesla/tmas/data"
+        // درخواست مجوزهای پیامک
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.READ_SMS
+            ), 101)
+        }
 
-        // Initialize Views
-        tvStatus = findViewById(R.id.tvStatus)
-        tvTemp1 = findViewById(R.id.tvTemp1)
-        tvTemp2 = findViewById(R.id.tvTemp2)
-        tvTemp3 = findViewById(R.id.tvTemp3)
-        btnSettings = findViewById(R.id.btnSettings)
+        tvConnStatus = findViewById(R.id.tvConnStatus)
+        tvSensor1 = findViewById(R.id.tvSensor1)
+        tvSensor2 = findViewById(R.id.tvSensor2)
+        tvSensor3 = findViewById(R.id.tvSensor3)
 
         chart1 = findViewById(R.id.chart1)
         chart2 = findViewById(R.id.chart2)
         chart3 = findViewById(R.id.chart3)
 
-        btnSettings.setColorFilter(Color.WHITE)
-        btnSettings.setOnClickListener {
+        setupChart(chart1, "#00D2D3")
+        setupChart(chart2, "#10AC84")
+        setupChart(chart3, "#FF6B6B")
+
+        connectToMQTT()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        // ایجاد دکمه تنظیمات در نوار بالای برنامه
+        menu?.add(0, 1, 0, "تنظیمات پیامک و هشدار")?.setIcon(android.R.drawable.ic_menu_preferences)?.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == 1) {
             showSettingsDialog()
         }
-
-        // Setup Charts
-        setupChart(chart1, "Sensor 1", Color.CYAN)
-        setupChart(chart2, "Sensor 2", Color.GREEN)
-        setupChart(chart3, "Sensor 3", Color.parseColor("#FF9100"))
-
-        connectMqtt()
+        return super.onOptionsItemSelected(item)
     }
 
     private fun showSettingsDialog() {
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("تنظیمات ارتباط MQTT")
-
+        val prefs = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(50, 30, 50, 10)
+            setPadding(50, 40, 50, 40)
         }
 
-        val tvHost = TextView(this).apply {
-            text = "آدرس بروکر یا IP (مثلاً 192.168.1.50):"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(0, 10, 0, 4)
+        val etM1 = EditText(this).apply { hint = "شماره مدیر 1 (اصلی)"; setText(prefs.getString("manager1", "")) }
+        val etM2 = EditText(this).apply { hint = "شماره مدیر 2"; setText(prefs.getString("manager2", "")) }
+        val cbM2 = CheckBox(this).apply { text = "فعال بودن مدیر 2"; isChecked = prefs.getBoolean("manager2_active", false) }
+        val etM3 = EditText(this).apply { hint = "شماره مدیر 3"; setText(prefs.getString("manager3", "")) }
+        val cbM3 = CheckBox(this).apply { text = "فعال بودن مدیر 3"; isChecked = prefs.getBoolean("manager3_active", false) }
+
+        val etMin1 = EditText(this).apply { hint = "حداقل دما سنسور 1"; setText(prefs.getFloat("s1_min", 0f).toString()) }
+        val etMax1 = EditText(this).apply { hint = "حداکثر دما سنسور 1"; setText(prefs.getFloat("s1_max", 100f).toString()) }
+
+        layout.addView(etM1)
+        layout.addView(cbM2); layout.addView(etM2)
+        layout.addView(cbM3); layout.addView(etM3)
+        layout.addView(TextView(this).apply { text = "تنظیمات هشدار سنسور ۱:" ; setPadding(0,20,0,0) })
+        layout.addView(etMin1); layout.addView(etMax1)
+
+        ScrollView(this).apply { addView(layout) }.let {
+            AlertDialog.Builder(this)
+                .setTitle("تنظیمات سیستم")
+                .setView(it)
+                .setPositiveButton("ذخیره") { _, _ ->
+                    prefs.edit().apply {
+                        putString("manager1", etM1.text.toString())
+                        putString("manager2", etM2.text.toString())
+                        putBoolean("manager2_active", cbM2.isChecked)
+                        putString("manager3", etM3.text.toString())
+                        putBoolean("manager3_active", cbM3.isChecked)
+                        putFloat("s1_min", etMin1.text.toString().toFloatOrNull() ?: 0f)
+                        putFloat("s1_max", etMax1.text.toString().toFloatOrNull() ?: 100f)
+                        apply()
+                    }
+                    Toast.makeText(this, "تنظیمات ذخیره شد", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("لغو", null)
+                .show()
         }
-        val etHost = EditText(this).apply {
-            hint = "e.g. 192.168.1.100 or broker.hivemq.com"
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
-            setText(brokerHost)
-        }
-
-        val tvPort = TextView(this).apply {
-            text = "پورت (پیش‌فرض 1883):"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(0, 16, 0, 4)
-        }
-        val etPort = EditText(this).apply {
-            hint = "1883"
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setText(brokerPort)
-        }
-
-        val tvTopic = TextView(this).apply {
-            text = "تاپیک سنسورها (Topic):"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(0, 16, 0, 4)
-        }
-        val etTopic = EditText(this).apply {
-            hint = "e.g. microtesla/tmas/data or tmas/#"
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
-            setText(brokerTopic)
-        }
-
-        layout.addView(tvHost)
-        layout.addView(etHost)
-        layout.addView(tvPort)
-        layout.addView(etPort)
-        layout.addView(tvTopic)
-        layout.addView(etTopic)
-
-        builder.setView(layout)
-
-        builder.setPositiveButton("ذخیره و اتصال") { dialog, _ ->
-            val host = etHost.text.toString().trim()
-            val port = etPort.text.toString().trim()
-            val topic = etTopic.text.toString().trim()
-
-            if (host.isNotEmpty() && port.isNotEmpty()) {
-                brokerHost = host
-                brokerPort = port
-                brokerTopic = if (topic.isNotEmpty()) topic else "microtesla/tmas/data"
-
-                val prefs = getSharedPreferences("TMAS_PREFS", MODE_PRIVATE)
-                prefs.edit()
-                    .putString("broker_host", brokerHost)
-                    .putString("broker_port", brokerPort)
-                    .putString("broker_topic", brokerTopic)
-                    .apply()
-
-                Toast.makeText(this, "تنظیمات ذخیره شد. در حال اتصال...", Toast.LENGTH_SHORT).show()
-                connectMqtt()
-            }
-            dialog.dismiss()
-        }
-
-        builder.setNegativeButton("انصراف") { dialog, _ ->
-            dialog.dismiss()
-        }
-
-        builder.show()
     }
 
-    private fun setupChart(chart: LineChart, label: String, color: Int) {
-        chart.setTouchEnabled(true)
-        chart.isDragEnabled = true
-        chart.setScaleEnabled(true)
-        chart.setDrawGridBackground(false)
+    private fun setupChart(chart: LineChart, colorHex: String) {
+        chart.description.isEnabled = false
+        chart.legend.isEnabled = false
+        chart.setTouchEnabled(false)
 
-        chart.xAxis.textColor = Color.LTGRAY
-        chart.axisLeft.textColor = Color.LTGRAY
+        val xAxis = chart.xAxis
+        xAxis.position = XAxis.XAxisPosition.BOTTOM
+        xAxis.setDrawGridLines(false)
+        xAxis.textColor = Color.parseColor("#8A94A6")
+
+        val leftAxis = chart.axisLeft
+        leftAxis.textColor = Color.parseColor("#8A94A6")
+        leftAxis.gridColor = Color.parseColor("#252932")
+
         chart.axisRight.isEnabled = false
-        chart.legend.textColor = Color.WHITE
-
-        val desc = Description()
-        desc.text = ""
-        chart.description = desc
-
-        val dataSet = LineDataSet(ArrayList<Entry>(), label)
-        dataSet.color = color
-        dataSet.setCircleColor(color)
-        dataSet.lineWidth = 2f
-        dataSet.circleRadius = 3f
-        dataSet.setDrawValues(false)
-        dataSet.mode = LineDataSet.Mode.CUBIC_BEZIER
-
-        val lineData = LineData(dataSet)
-        chart.data = lineData
-        chart.invalidate()
+        chart.data = LineData(LineDataSet(mutableListOf(), "").apply {
+            color = Color.parseColor(colorHex)
+            lineWidth = 2.5f
+            setDrawCircles(false)
+            setDrawValues(false)
+            mode = LineDataSet.Mode.CUBIC_BEZIER
+        })
     }
 
-    private fun addEntryToChart(chart: LineChart, value: Float, index: Float): Float {
+    private fun addEntryToChart(chart: LineChart, value: Float, currentIndex: Float): Float {
         val data = chart.data
-        if (data != null) {
-            var set = data.getDataSetByIndex(0)
-            if (set == null) {
-                set = LineDataSet(ArrayList<Entry>(), "Data")
-                data.addDataSet(set)
-            }
-            data.addEntry(Entry(index, value), 0)
+        val set = data.getDataSetByIndex(0)
+        set.addEntry(Entry(currentIndex, value))
 
-            if (set.entryCount > maxEntries) {
-                set.removeEntry(0)
-            }
-
-            data.notifyDataChanged()
-            chart.notifyDataSetChanged()
-            chart.setVisibleXRangeMaximum(maxEntries.toFloat())
-            chart.moveViewToX(data.entryCount.toFloat())
-        }
-        return index + 1f
-    }
-
-    private fun connectMqtt() {
-        runOnUiThread {
-            tvStatus.text = "Status: Connecting..."
-            tvStatus.setTextColor(Color.parseColor("#FFD600")) // Yellow
+        if (set.entryCount > maxEntries) {
+            set.removeEntry(0)
         }
 
-        // Connection running in Background Thread to prevent NetworkOnMainThreadException
-        Thread {
-            try {
-                try {
-                    if (mqttClient?.isConnected == true) {
-                        mqttClient?.disconnect()
-                    }
-                } catch (_: Exception) {}
+        data.notifyDataChanged()
+        chart.notifyDataSetChanged()
+        chart.setVisibleXRangeMaximum(maxEntries.toFloat())
+        chart.moveViewToX(currentIndex)
 
-                val brokerUri = "tcp://$brokerHost:$brokerPort"
-                val persistence = MemoryPersistence()
-                val client = MqttClient(brokerUri, clientId, persistence)
-                mqttClient = client
-
-                val options = MqttConnectOptions()
-                options.isCleanSession = true
-                options.connectionTimeout = 10
-                options.keepAliveInterval = 20
-
-                client.setCallback(object : MqttCallback {
-                    override fun connectionLost(cause: Throwable?) {
-                        runOnUiThread {
-                            tvStatus.text = "Status: Disconnected"
-                            tvStatus.setTextColor(Color.RED)
-                        }
-                        Log.d("MQTT", "Connection Lost: ${cause?.message}")
-                    }
-
-                    override fun messageArrived(topic: String?, message: MqttMessage?) {
-                        val payload = message?.toString()?.trim() ?: ""
-                        runOnUiThread {
-                            handleIncomingData(topic, payload)
-                        }
-                    }
-
-                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-                })
-
-                client.connect(options)
-
-                // Subscribe to user configured topic
-                client.subscribe(brokerTopic, 0)
-
-                // Fallback wildcards to ensure incoming messages are never missed
-                if (brokerTopic != "tmas/#") {
-                    try { client.subscribe("tmas/#", 0) } catch (_: Exception) {}
-                }
-                if (brokerTopic != "microtesla/tmas/#") {
-                    try { client.subscribe("microtesla/tmas/#", 0) } catch (_: Exception) {}
-                }
-
-                runOnUiThread {
-                    tvStatus.text = "Status: Connected"
-                    tvStatus.setTextColor(Color.GREEN)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                runOnUiThread {
-                    tvStatus.text = "Status: Error"
-                    tvStatus.setTextColor(Color.RED)
-                }
-            }
-        }.start()
+        return currentIndex + 1f
     }
 
-    private fun handleIncomingData(topic: String?, payload: String) {
+    private fun connectToMQTT() {
+        val clientId = "TMAS_Android_" + UUID.randomUUID().toString()
         try {
-            // Format 1: JSON payload (e.g. {"temp1": 25.4, "temp2": 30.1, "temp3": 28.5})
-            if (payload.startsWith("{") && payload.endsWith("}")) {
-                val json = JSONObject(payload)
-                val v1 = when {
-                    json.has("temp1") -> json.getDouble("temp1").toFloat()
-                    json.has("s1") -> json.getDouble("s1").toFloat()
-                    json.has("sensor1") -> json.getDouble("sensor1").toFloat()
-                    else -> null
-                }
-                val v2 = when {
-                    json.has("temp2") -> json.getDouble("temp2").toFloat()
-                    json.has("s2") -> json.getDouble("s2").toFloat()
-                    json.has("sensor2") -> json.getDouble("sensor2").toFloat()
-                    else -> null
-                }
-                val v3 = when {
-                    json.has("temp3") -> json.getDouble("temp3").toFloat()
-                    json.has("s3") -> json.getDouble("s3").toFloat()
-                    json.has("sensor3") -> json.getDouble("sensor3").toFloat()
-                    else -> null
-                }
-
-                v1?.let {
-                    tvTemp1.text = String.format("%.2f °C", it)
-                    chartIndex1 = addEntryToChart(chart1, it, chartIndex1)
-                }
-                v2?.let {
-                    tvTemp2.text = String.format("%.2f °C", it)
-                    chartIndex2 = addEntryToChart(chart2, it, chartIndex2)
-                }
-                v3?.let {
-                    tvTemp3.text = String.format("%.2f °C", it)
-                    chartIndex3 = addEntryToChart(chart3, it, chartIndex3)
-                }
-                return
+            mqttClient = MqttClient(broker, clientId, MemoryPersistence())
+            val options = MqttConnectOptions().apply {
+                isCleanSession = true
+                connectionTimeout = 10
+                keepAliveInterval = 30
             }
 
-            // Format 2: Comma separated (e.g. "25.4,30.1,28.5")
-            if (payload.contains(",")) {
-                val parts = payload.split(",")
-                parts.getOrNull(0)?.trim()?.toFloatOrNull()?.let {
-                    tvTemp1.text = String.format("%.2f °C", it)
-                    chartIndex1 = addEntryToChart(chart1, it, chartIndex1)
+            mqttClient?.setCallback(object : MqttCallback {
+                override fun connectionLost(cause: Throwable?) {
+                    mainHandler.post {
+                        tvConnStatus.text = "Disconnected"
+                        tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
+                    }
+                    Thread {
+                        Thread.sleep(3000)
+                        connectToMQTT()
+                    }.start()
                 }
-                parts.getOrNull(1)?.trim()?.toFloatOrNull()?.let {
-                    tvTemp2.text = String.format("%.2f °C", it)
-                    chartIndex2 = addEntryToChart(chart2, it, chartIndex2)
+
+                override fun messageArrived(topic: String?, message: MqttMessage?) {
+                    message?.let {
+                        val payload = String(it.payload)
+                        mainHandler.post { handleIncomingData(payload) }
+                    }
                 }
-                parts.getOrNull(2)?.trim()?.toFloatOrNull()?.let {
-                    tvTemp3.text = String.format("%.2f °C", it)
-                    chartIndex3 = addEntryToChart(chart3, it, chartIndex3)
+
+                override fun deliveryComplete(token: GAPGPTMASKTOKEN19eek0hidfgX0X) {}
+            })
+
+            Thread {
+                try {
+                    mqttClient?.connect(options)
+                    mqttClient?.subscribe(topic)
+                    mainHandler.post {
+                        tvConnStatus.text = "● Live Online"
+                        tvConnStatus.setTextColor(Color.parseColor("#10AC84"))
+                    }
+                } catch (e: Exception) {
+                    mainHandler.post {
+                        tvConnStatus.text = "Retrying..."
+                        tvConnStatus.setTextColor(Color.parseColor("#FDCB6E"))
+                    }
+                    Thread.sleep(4000)
+                    connectToMQTT()
                 }
-                return
+            }.start()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun checkAndSendAlarm(sensorName: String, temp: Float, min: Float, max: Float, lastSmsTime: Long): Long {
+        if (min != 0f || max != 100f) {
+            if (temp < min || temp > max) {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastSmsTime > SMS_COOLDOWN) {
+                    val prefs = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
+                    val m1 = prefs.getString("manager1", "") ?: ""
+                    val m2 = prefs.getString("manager2", "") ?: ""
+                    val m3 = prefs.getString("manager3", "") ?: ""
+                    val m2Active = prefs.getBoolean("manager2_active", false)
+                    val m3Active = prefs.getBoolean("manager3_active", false)
+
+                    val msg = "⚠️ هشدار $sensorName\nدمای فعلی: $temp °C\n(مجاز: $min تا $max)"
+                    val smsManager = SmsManager.getDefault()
+                    
+                    try {
+                        if (m1.isNotEmpty()) smsManager.sendTextMessage(m1, null, msg, null, null)
+                        if (m2Active && m2.isNotEmpty()) smsManager.sendTextMessage(m2, null, msg, null, null)
+                        if (m3Active && m3.isNotEmpty()) smsManager.sendTextMessage(m3, null, msg, null, null)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    return currentTime
+                }
+            }
+        }
+        return lastSmsTime
+    }
+
+    private fun handleIncomingData(message: String) {
+        try {
+            val json = JSONObject(message)
+            val s1 = json.optDouble("s1", Double.NaN).toFloat()
+            val s2 = json.optDouble("s2", Double.NaN).toFloat()
+            val s3 = json.optDouble("s3", Double.NaN).toFloat()
+
+            val prefs = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
+
+            if (!s1.isNaN()) {
+                lastTemp1 = s1
+                tvSensor1.text = String.format("%.2f °C", s1)
+                chartIndex1 = addEntryToChart(chart1, s1, chartIndex1)
+                
+                val min1 = prefs.getFloat("s1_min", 0f)
+                val max1 = prefs.getFloat("s1_max", 100f)
+                lastSmsTimeS1 = checkAndSendAlarm("سنسور ۱", s1, min1, max1, lastSmsTimeS1)
             }
 
-            // Format 3: Single float per sub-topic
-            val singleVal = payload.toFloatOrNull()
-            if (singleVal != null) {
-                val t = topic?.lowercase() ?: ""
-                when {
-                    t.endsWith("sensor1") || t.endsWith("temp1") || t.endsWith("1") -> {
-                        tvTemp1.text = String.format("%.2f °C", singleVal)
-                        chartIndex1 = addEntryToChart(chart1, singleVal, chartIndex1)
-                    }
-                    t.endsWith("sensor2") || t.endsWith("temp2") || t.endsWith("2") -> {
-                        tvTemp2.text = String.format("%.2f °C", singleVal)
-                        chartIndex2 = addEntryToChart(chart2, singleVal, chartIndex2)
-                    }
-                    t.endsWith("sensor3") || t.endsWith("temp3") || t.endsWith("3") -> {
-                        tvTemp3.text = String.format("%.2f °C", singleVal)
-                        chartIndex3 = addEntryToChart(chart3, singleVal, chartIndex3)
-                    }
-                }
+            if (!s2.isNaN()) {
+                lastTemp2 = s2
+                tvSensor2.text = String.format("%.2f °C", s2)
+                chartIndex2 = addEntryToChart(chart2, s2, chartIndex2)
             }
+
+            if (!s3.isNaN()) {
+                lastTemp3 = s3
+                tvSensor3.text = String.format("%.2f °C", s3)
+                chartIndex3 = addEntryToChart(chart3, s3, chartIndex3)
+            }
+
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -377,6 +308,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         try {
             mqttClient?.disconnect()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
