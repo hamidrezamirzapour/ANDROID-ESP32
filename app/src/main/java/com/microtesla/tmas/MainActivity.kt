@@ -25,6 +25,7 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.microtesla.tmas.R
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttClient
@@ -68,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Request SMS Permissions
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 this,
@@ -80,6 +82,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        // Bind Views
         tvConnStatus = findViewById(R.id.tvConnStatus)
         tvSensor1 = findViewById(R.id.tvSensor1)
         tvSensor2 = findViewById(R.id.tvSensor2)
@@ -198,6 +201,13 @@ class MainActivity : AppCompatActivity() {
         leftAxis.gridColor = Color.parseColor("#252932")
 
         chart.axisRight.isEnabled = false
+        chart.data.textColor = Color.parseColor("#8A94A6")
+
+        val leftAxis = chart.axisLeft
+        leftAxis.textColor = Color.parseColor("#8A94A6")
+        leftAxis.gridColor = Color.parseColor("#252932")
+
+        chart.axisRight.isEnabled = false
         chart.data = LineData(LineDataSet(mutableListOf(), "").apply {
             color = Color.parseColor(colorHex)
             lineWidth = 2.5f
@@ -246,16 +256,7 @@ class MainActivity : AppCompatActivity() {
                     }.start()
                 }
 
-                override fun messageArrived(topic: String?, message: MqttMessage?) {
-                    message?.let {
-                        val payload = String(it.payload)
-                        mainHandler.post { handleIncomingData(payload) }
-                    }
-                }
-
-                override fun deliveryComplete(token: IMqttDeliveryToken?) {
-                    // Not used for subscriber
-                }
+                override                }
             })
 
             Thread {
