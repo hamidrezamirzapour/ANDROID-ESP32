@@ -25,7 +25,6 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import com.microtesla.tmas.R
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttClient
@@ -201,13 +200,7 @@ class MainActivity : AppCompatActivity() {
         leftAxis.gridColor = Color.parseColor("#252932")
 
         chart.axisRight.isEnabled = false
-        chart.data.textColor = Color.parseColor("#8A94A6")
-
-        val leftAxis = chart.axisLeft
-        leftAxis.textColor = Color.parseColor("#8A94A6")
-        leftAxis.gridColor = Color.parseColor("#252932")
-
-        chart.axisRight.isEnabled = false
+        
         chart.data = LineData(LineDataSet(mutableListOf(), "").apply {
             color = Color.parseColor(colorHex)
             lineWidth = 2.5f
@@ -256,7 +249,16 @@ class MainActivity : AppCompatActivity() {
                     }.start()
                 }
 
-                override                }
+                override fun messageArrived(topic: String?, message: MqttMessage?) {
+                    message?.let {
+                        val msgStr = String(it.payload)
+                        mainHandler.post { handleIncomingData(msgStr) }
+                    }
+                }
+
+                override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                    // نیازی به پیاده‌سازی برای سابسکرایبر نیست
+                }
             })
 
             Thread {
