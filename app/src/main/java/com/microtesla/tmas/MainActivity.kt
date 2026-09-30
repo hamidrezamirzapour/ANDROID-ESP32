@@ -257,6 +257,34 @@ class MainActivity : AppCompatActivity() {
                         mainHandler.post {
                             tvSensor1.text = String.format("%.2f °C", s1)
                             tvSensor2.text = String.format("%.2f °C", s2)
+                            tvSensor, persistence)
+
+        val options = MqttConnectOptions()
+        options.isCleanSession = true
+
+        mqttClient?.setCallback(object : MqttCallback {
+            override fun connectionLost(cause: Throwable?) {
+                mainHandler.post {
+                    tvConnStatus.text = "Connection Lost"
+                    tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
+                }
+            }
+
+            override fun messageArrived(topic: String?, message: MqttMessage?) {
+                message?.let {
+                    try {
+                        val json = JSONObject(String(it.payload))
+                        val s1 = json.getDouble("sensor1").toFloat()
+                        val s2 = json.getDouble("sensor2").toFloat()
+                        val s3 = json.getDouble("sensor3").toFloat()
+
+                        lastTemp1 = s1
+                        lastTemp2 = s2
+                        lastTemp3 = s3
+
+                        mainHandler.post {
+                            tvSensor1.text = String.format("%.2f °C", s1)
+                            tvSensor2.text = String.format("%.2f °C", s2)
                             tvSensor3.text = String.format("%.2f °C", s3)
 
                             chartIndex1++
@@ -285,29 +313,7 @@ class MainActivity : AppCompatActivity() {
             mqttClient?.subscribe(this.topic)
             mainHandler.post {
                 tvConnStatus.text = "Connected to Broker"
-                tvConnStatus.setTextColor(Color.parseColor("#10AC84"))
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            mainHandler.post {
-                tvConnStatus.text = "Connection Failed"
-                tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
-            }
-        }
-    }
-
-    private fun checkThresholdsAndSMS(temp: Float) {
-        val prefs = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
-        val minTemp = prefs.getFloat("s1_min", 0f)
-        val maxTemp = prefs.getFloat("s1_max", 100f)
-
-        if (temp < minTemp || temp > maxTemp) {
-            val currentTime = System.currentTimeMillis()
-            if (currentTime - lastSmsTimeS1 > SMS_COOLDOWN) {
-                lastSmsTimeS1 = currentTime
-                val msg = "TMAS ALARM: Sensor 1 Temp Alert ($temp °C)"
-                val m1 = prefs.getString("manager1", "")
-                val m2 = prefs.getString("manager2", "")
+                tvConn m2 = prefs.getString("manager2", "")
                 val m2Active = prefs.getBoolean("manager2_active", false)
                 val m3 = prefs.getString("manager3", "")
                 val m3Active = prefs.getBoolean("manager3_active", false)
