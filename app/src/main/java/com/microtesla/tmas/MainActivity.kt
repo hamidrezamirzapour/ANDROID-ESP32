@@ -208,50 +208,6 @@ class MainActivity : AppCompatActivity() {
         val data = chart.data ?: return
         var set = data.getDataSetByIndex(0)
         if (set == null) {
-            set = etM2.text.toString())
-                    putBoolean("manager2_active", cbM2.isChecked)
-                    putString("manager3", etM3.text.toString())
-                    putBoolean("manager3_active", cbM3.isChecked)
-                    putFloat("s1_min", minVal)
-                    putFloat("s1_max", maxVal)
-                    apply()
-                }
-                Toast.makeText(this, "Settings Saved", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun setupChart(chart: LineChart, colorHex: String) {
-        chart.setTouchEnabled(false)
-        chart.description.isEnabled = false
-        chart.legend.isEnabled = false
-
-        val xAxis = chart.xAxis
-        xAxis.position = XAxis.XAxisPosition.BOTTOM
-        xAxis.setDrawGridLines(false)
-        xAxis.textColor = Color.parseColor("#8A94A6")
-
-        val leftAxis = chart.axisLeft
-        leftAxis.textColor = Color.parseColor("#8A94A6")
-        leftAxis.gridColor = Color.parseColor("#252932")
-
-        chart.axisRight.isEnabled = false
-
-        val dataSet = LineDataSet(mutableListOf(), "").apply {
-            color = Color.parseColor(colorHex)
-            lineWidth = 2f
-            setDrawCircles(false)
-            setDrawValues(false)
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-        }
-        chart.data = LineData(dataSet)
-    }
-
-    private fun addEntryToChart(chart: LineChart, value: Float, xIndex: Float) {
-        val data = chart.data ?: return
-        var set = data.getDataSetByIndex(0)
-        if (set == null) {
             set = LineDataSet(mutableListOf(), "")
             data.addDataSet(set)
         }
@@ -261,12 +217,57 @@ class MainActivity : AppCompatActivity() {
         }
         data.notifyDataChanged()
         chart.notifyDataSetChanged()
-        chart.invalidate()e.printStackTrace()
+        chart.invalidate()
+    }
+
+    private fun connectToMQTT() {
+        val clientId = UUID.randomUUID().toString()
+        val persistence = MemoryPersistence()
+        mqttClient = MqttClient(broker, clientId, persistence)
+
+        val options = MqttConnectOptions()
+        options.isCleanSession = true
+
+        mqttClient?.setCallback(object : MqttCallback {
+            override fun connectionLost(cause: Throwable?) {
+                mainHandler.post {
+                    tvConnStatus.text = "Connection Lost"
+                    tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
+                }
+            }
+
+            override fun messageArrived(topic: String?, message: MqttMessage?) {
+                message?.let {
+                    try {
+                        val json = JSONObject(String(it.payload))
+                        val s1 = json.getDouble("sensor1").toFloat()
+                        val s2 = json.getDouble("sensor2").toFloat()
+                        val s3 = json.getDouble("sensor3").toFloat()
+
+                        mainHandler.post {
+                            tvSensor1.text = String.format("%.2f °C", s1)
+                            tvSensor2.text = String.format("%.2f °C", s2)
+                            tvSensor3.text = String.format("%.2f °C", s3)
+
+                            chartIndex1++
+                            chartIndex2++
+                            chartIndex3++
+
+                            addEntryToChart(chart1, s1, chartIndex1)
+                            addEntryToChart(chart2, s2, chartIndex2)
+                            addEntryToChart(chart3, s3, chartIndex3)
+
+                            checkThresholdsAndSMS(s1)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
             }
 
-            override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+            override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                // Not used in this project
+            }
         })
 
         try {
@@ -294,6 +295,37 @@ class MainActivity : AppCompatActivity() {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastSmsTimeS1 > SMS_COOLDOWN) {
                 lastSmsTimeS1 = currentTime
+                val msg = "TMAS ALARM: Sensor 1 Temp Alert ($temp °C)"
+                val m1 = prefs.getString("manager1", "")
+                val m2 = prefs.getString("manager2", "")
+                val m2Active = prefs.getBoolean("manager2_active", false)
+                val m3 = prefs.getString("manager3", "")
+                val m3Active = prefs.getBoolean("manager3_active", false)
+
+                sendSms(m1, msg)
+                if (m2Active) sendSms(m2, msg)
+                if (m3Active) sendSms(m3, msg)
+            }
+        }
+    }
+
+    private fun sendSms(phone: String?, message: String) {
+        if (!phone.isNullOrBlank()) {
+            try {
+                val smsManager = SmsManager.getDefault()
+                smsManager.sendTextMessage(phone, null, message, null, null)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            mqttClient?.disconnect()
+            mqttClient?.close()
+        } catch (e: Exception) {lastSmsTimeS1 = currentTime
                 val msg = "TMAS ALARM: Sensor 1 Temp Alert ($temp °C)"
                 val m1 = prefs.getString("manager1", "")
                 val m2 = prefs.getString("manager2", "")
