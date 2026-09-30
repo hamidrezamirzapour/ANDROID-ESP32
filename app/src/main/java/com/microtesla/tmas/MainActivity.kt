@@ -144,7 +144,10 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun deliveryComplete(token: GAPGPTMASKTOKENmgfc1vzkuwgX0X {}
+                // اینجا ارور داشت که کاملاً اصلاح شد
+                override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                    // خالی می‌ماند
+                }
             })
 
             mqttClient?.connect(options)
