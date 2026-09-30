@@ -25,7 +25,6 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
@@ -42,13 +41,13 @@ class MainActivity : AppCompatActivity() {
         var lastTemp3: Float = 0.0f
     }
 
-    private lateinit var tvConnStatus: TextView
-    private lateinit var tvSensor1: TextView
-    private lateinit var tvSensor2: TextView
-    private lateinit var tvSensor3: TextView
-    private lateinit var chart1: LineChart
-    private lateinit var chart2: LineChart
-    private lateinit var chart3: LineChart
+    private var tvConnStatus: TextView? = null
+    private var tvSensor1: TextView? = null
+    private var tvSensor2: TextView? = null
+    private var tvSensor3: TextView? = null
+    private var chart1: LineChart? = null
+    private var chart2: LineChart? = null
+    private var chart3: LineChart? = null
 
     private val maxEntries = 30
     private var chartIndex1 = 0f
@@ -84,9 +83,9 @@ class MainActivity : AppCompatActivity() {
         chart2 = findViewById(R.id.chart2)
         chart3 = findViewById(R.id.chart3)
 
-        setupChart(chart1, "#00D2D3")
-        setupChart(chart2, "#10AC84")
-        setupChart(chart3, "#FF6B6B")
+        chart1?.let { setupChart(it, "#00D2D3") }
+        chart2?.let { setupChart(it, "#10AC84") }
+        chart3?.let { setupChart(it, "#FF6B6B") }
 
         connectToMQTT()
     }
@@ -210,7 +209,8 @@ class MainActivity : AppCompatActivity() {
         chart.data = LineData(dataSet)
     }
 
-    private fun addEntryToChart(chart: LineChart, value: Float, xIndex: Float) {
+    private fun addEntryToChart(chart: LineChart?, value: Float, xIndex: Float) {
+        if (chart == null) return
         val data = chart.data ?: return
         var set = data.getDataSetByIndex(0)
         if (set == null) {
@@ -237,8 +237,8 @@ class MainActivity : AppCompatActivity() {
         mqttClient?.setCallback(object : MqttCallback {
             override fun connectionLost(cause: Throwable?) {
                 mainHandler.post {
-                    tvConnStatus.text = "Connection Lost"
-                    tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
+                    tvConnStatus?.text = "Connection Lost"
+                    tvConnStatus?.setTextColor(Color.parseColor("#FF6B6B"))
                 }
             }
 
@@ -255,9 +255,9 @@ class MainActivity : AppCompatActivity() {
                         lastTemp3 = s3
 
                         mainHandler.post {
-                            tvSensor1.text = String.format("%.2f °C", s1)
-                            tvSensor2.text = String.format("%.2f °C", s2)
-                            tvSensor3.text = String.format("%.2f °C", s3)
+                            tvSensor1?.text = String.format("%.2f °C", s1)
+                            tvSensor2?.text = String.format("%.2f °C", s2)
+                            tvSensor3?.text = String.format("%.2f °C", s3)
 
                             chartIndex1++
                             chartIndex2++
@@ -275,7 +275,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            override fun deliveryComplete(token: GAPGPTMASKTOKEN2yz49qmp9dqX0X?) {
+            override fun deliveryComplete(token: org.eclipse.paho.client.mqttv3.IMqttDeliveryToken?) {
                 // Not used
             }
         })
@@ -284,14 +284,14 @@ class MainActivity : AppCompatActivity() {
             mqttClient?.connect(options)
             mqttClient?.subscribe(this.topic)
             mainHandler.post {
-                tvConnStatus.text = "Connected to Broker"
-                tvConnStatus.setTextColor(Color.parseColor("#10AC84"))
+                tvConnStatus?.text = "Connected to Broker"
+                tvConnStatus?.setTextColor(Color.parseColor("#10AC84"))
             }
         } catch (e: Exception) {
             e.printStackTrace()
             mainHandler.post {
-                tvConnStatus.text = "Connection Failed"
-                tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
+                tvConnStatus?.text = "Connection Failed"
+                tvConnStatus?.setTextColor(Color.parseColor("#FF6B6B"))
             }
         }
     }
