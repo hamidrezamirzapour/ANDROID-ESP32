@@ -275,8 +275,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            override fun deliveryComplete(token: GAPGPTMASKTOKENfyr54jfidzuX0X {
-                // Not used in this project
+            override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                // Not used
             }
         })
 
