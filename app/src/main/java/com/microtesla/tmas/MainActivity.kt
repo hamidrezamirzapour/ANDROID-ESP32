@@ -36,6 +36,12 @@ import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        var lastTemp1: Float = 0.0f
+        var lastTemp2: Float = 0.0f
+        var lastTemp3: Float = 0.0f
+    }
+
     private lateinit var tvConnStatus: TextView
     private lateinit var tvSensor1: TextView
     private lateinit var tvSensor2: TextView
@@ -71,9 +77,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         tvConnStatus = findViewById(R.id.tvConnStatus)
-        tvSensor1 = findViewById(R.id.tvTemp1)
-        tvSensor2 = findViewById(R.id.tvTemp2)
-        tvSensor3 = findViewById(R.id.tvTemp3)
+        tvSensor1 = findViewById(R.id.tvSensor1)
+        tvSensor2 = findViewById(R.id.tvSensor2)
+        tvSensor3 = findViewById(R.id.tvSensor3)
         chart1 = findViewById(R.id.chart1)
         chart2 = findViewById(R.id.chart2)
         chart3 = findViewById(R.id.chart3)
@@ -244,6 +250,10 @@ class MainActivity : AppCompatActivity() {
                         val s2 = json.getDouble("sensor2").toFloat()
                         val s3 = json.getDouble("sensor3").toFloat()
 
+                        lastTemp1 = s1
+                        lastTemp2 = s2
+                        lastTemp3 = s3
+
                         mainHandler.post {
                             tvSensor1.text = String.format("%.2f °C", s1)
                             tvSensor2.text = String.format("%.2f °C", s2)
@@ -295,37 +305,6 @@ class MainActivity : AppCompatActivity() {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastSmsTimeS1 > SMS_COOLDOWN) {
                 lastSmsTimeS1 = currentTime
-                val msg = "TMAS ALARM: Sensor 1 Temp Alert ($temp °C)"
-                val m1 = prefs.getString("manager1", "")
-                val m2 = prefs.getString("manager2", "")
-                val m2Active = prefs.getBoolean("manager2_active", false)
-                val m3 = prefs.getString("manager3", "")
-                val m3Active = prefs.getBoolean("manager3_active", false)
-
-                sendSms(m1, msg)
-                if (m2Active) sendSms(m2, msg)
-                if (m3Active) sendSms(m3, msg)
-            }
-        }
-    }
-
-    private fun sendSms(phone: String?, message: String) {
-        if (!phone.isNullOrBlank()) {
-            try {
-                val smsManager = SmsManager.getDefault()
-                smsManager.sendTextMessage(phone, null, message, null, null)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try {
-            mqttClient?.disconnect()
-            mqttClient?.close()
-        } catch (e: Exception) {lastSmsTimeS1 = currentTime
                 val msg = "TMAS ALARM: Sensor 1 Temp Alert ($temp °C)"
                 val m1 = prefs.getString("manager1", "")
                 val m2 = prefs.getString("manager2", "")
