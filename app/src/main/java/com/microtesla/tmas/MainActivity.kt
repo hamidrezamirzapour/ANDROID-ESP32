@@ -36,7 +36,6 @@ import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
-    // UI Views
     private lateinit var tvConnStatus: TextView
     private lateinit var tvSensor1: TextView
     private lateinit var tvSensor2: TextView
@@ -50,21 +49,18 @@ class MainActivity : AppCompatActivity() {
     private var chartIndex2 = 0f
     private var chartIndex3 = 0f
 
-    // MQTT Configuration
     private var mqttClient: MqttClient? = null
     private val broker = "tcp://broker.hivemq.com:1883"
     private val topic = "microtesla/tmas/data"
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // SMS Configuration
     private var lastSmsTimeS1 = 0L
-    private val SMS_COOLDOWN = 60000L // 1 minute delay between SMS
+    private val SMS_COOLDOWN = 60000L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. Request Permissions
         val permissions = arrayOf(
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
@@ -74,21 +70,18 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, permissions, 101)
         }
 
-        // 2. Bind Views (اتصال به XML)
         tvConnStatus = findViewById(R.id.tvConnStatus)
-        tvSensor1 = findViewById(R.id.tvSensor1)
-        tvSensor2 = findViewById(R.id.tvSensor2)
-        tvSensor3 = findViewById(R.id.tvSensor3)
+        tvSensor1 = findViewById(R.id.tvTemp1)
+        tvSensor2 = findViewById(R.id.tvTemp2)
+        tvSensor3 = findViewById(R.id.tvTemp3)
         chart1 = findViewById(R.id.chart1)
         chart2 = findViewById(R.id.chart2)
         chart3 = findViewById(R.id.chart3)
 
-        // 3. Setup Charts
         setupChart(chart1, "#00D2D3")
         setupChart(chart2, "#10AC84")
         setupChart(chart3, "#FF6B6B")
 
-        // 4. Start MQTT Connection
         connectToMQTT()
     }
 
@@ -189,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         chart.setTouchEnabled(false)
         chart.description.isEnabled = false
         chart.legend.isEnabled = false
-        
+
         val xAxis = chart.xAxis
         xAxis.position = XAxis.XAxisPosition.BOTTOM
         xAxis.setDrawGridLines(false)
@@ -197,20 +190,25 @@ class MainActivity : AppCompatActivity() {
 
         val leftAxis = chart.axisLeft
         leftAxis.textColor = Color.parseColor("#8A94A6")
-        leftAxis.gridColor = Color.parse)
-        layout.addView(etMax1)
+        leftAxis.gridColor = Color.parseColor("#252932")
 
-        val scrollView = ScrollView(this).apply { addView(layout) }
+        chart.axisRight.isEnabled = false
 
-        AlertDialog.Builder(this)
-            .setTitle("System Settings")
-            .setView(scrollView)
-            .setPositiveButton("Save") { _, _ ->
-                val minVal = etMin1.text.toString().toFloatOrNull() ?: 0f
-                val maxVal = etMax1.text.toString().toFloatOrNull() ?: 100f
-                prefs.edit().apply {
-                    putString("manager1", etM1.text.toString())
-                    putString("manager2", etM2.text.toString())
+        val dataSet = LineDataSet(mutableListOf(), "").apply {
+            color = Color.parseColor(colorHex)
+            lineWidth = 2f
+            setDrawCircles(false)
+            setDrawValues(false)
+            mode = LineDataSet.Mode.CUBIC_BEZIER
+        }
+        chart.data = LineData(dataSet)
+    }
+
+    private fun addEntryToChart(chart: LineChart, value: Float, xIndex: Float) {
+        val data = chart.data ?: return
+        var set = data.getDataSetByIndex(0)
+        if (set == null) {
+            set = etM2.text.toString())
                     putBoolean("manager2_active", cbM2.isChecked)
                     putString("manager3", etM3.text.toString())
                     putBoolean("manager3_active", cbM3.isChecked)
@@ -228,7 +226,7 @@ class MainActivity : AppCompatActivity() {
         chart.setTouchEnabled(false)
         chart.description.isEnabled = false
         chart.legend.isEnabled = false
-        
+
         val xAxis = chart.xAxis
         xAxis.position = XAxis.XAxisPosition.BOTTOM
         xAxis.setDrawGridLines(false)
@@ -237,75 +235,33 @@ class MainActivity : AppCompatActivity() {
         val leftAxis = chart.axisLeft
         leftAxis.textColor = Color.parseColor("#8A94A6")
         leftAxis.gridColor = Color.parseColor("#252932")
-        
+
         chart.axisRight.isEnabled = false
 
         val dataSet = LineDataSet(mutableListOf(), "").apply {
-            color = Color.parseColor(colorHex).post {
-                        try {
-                            val json = JSONObject(payload)
-                            if (json.has("s1")) {
-                                val s1 = json.getDouble("s1").toFloat()
-                                tvSensor1.text = "$s1 °C"
-                                chartIndex1++
-                                addEntryToChart(chart1, s1, chartIndex1)
-                                checkThresholdsAndSMS(s1)
-                            }
-                            if (json.has("s2")) {
-                                val s2 = json.getDouble("s2").toFloat()
-                                tvSensor2.text = "$s2 °C"
-                                chartIndex2++
-                                addEntryToChart(chart2, s2, chartIndex2)
-                            }
-                            if (json.has("s3")) {
-                                val s3 = json.getDouble("s3").toFloat()
-                                tvSensor3.text = "$s3 °C"
-                                chartIndex3++
-                                addEntryToChart(chart3, s3, chartIndex3)
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-                }
-            }
-
-            override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-        })
-
-        try {
-            mqttClient?.connect(options)
-            mqttClient?.subscribe(this.topic)
-            mainHandler.post {
-                tvConnStatus.text = "Connected to Broker"
-                tvConnStatus.setTextColor(Color.parseColor("#10AC84"))
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            mainHandler.post {
-                tvConnStatus.text = "Connection Failed"
-                tvConnStatus.setTextColor(Color.parseColor("#FF6B6B"))
-            }
+            color = Color.parseColor(colorHex)
+            lineWidth = 2f
+            setDrawCircles(false)
+            setDrawValues(false)
+            mode = LineDataSet.Mode.CUBIC_BEZIER
         }
+        chart.data = LineData(dataSet)
     }
 
-    private fun checkThresholdsAndSMS(temp: Float) {
-        val prefs = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
-        val minTemp = prefs.getFloat("s1_min", if (json.has("s2")) {
-                                val s2 = json.getDouble("s2").toFloat()
-                                tvSensor2.text = "$s2 °C"
-                                chartIndex2++
-                                addEntryToChart(chart2, s2, chartIndex2)
-                            }
-                            if (json.has("s3")) {
-                                val s3 = json.getDouble("s3").toFloat()
-                                tvSensor3.text = "$s3 °C"
-                                chartIndex3++
-                                addEntryToChart(chart3, s3, chartIndex3)
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+    private fun addEntryToChart(chart: LineChart, value: Float, xIndex: Float) {
+        val data = chart.data ?: return
+        var set = data.getDataSetByIndex(0)
+        if (set == null) {
+            set = LineDataSet(mutableListOf(), "")
+            data.addDataSet(set)
+        }
+        data.addEntry(Entry(xIndex, value), 0)
+        if (set.entryCount > maxEntries) {
+            set.removeFirst()
+        }
+        data.notifyDataChanged()
+        chart.notifyDataSetChanged()
+        chart.invalidate()e.printStackTrace()
                     }
                 }
             }
@@ -333,9 +289,43 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
         val minTemp = prefs.getFloat("s1_min", 0f)
         val maxTemp = prefs.getFloat("s1_max", 100f)
-        
+
         if (temp < minTemp || temp > maxTemp) {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastSmsTimeS1 > SMS_COOLDOWN) {
                 lastSmsTimeS1 = currentTime
-                val msg = "TMAS ALARM: Sensor 1 گیت‌هاب اکشنز (GitHub Actions) بیلد خواهد شد.
+                val msg = "TMAS ALARM: Sensor 1 Temp Alert ($temp °C)"
+                val m1 = prefs.getString("manager1", "")
+                val m2 = prefs.getString("manager2", "")
+                val m2Active = prefs.getBoolean("manager2_active", false)
+                val m3 = prefs.getString("manager3", "")
+                val m3Active = prefs.getBoolean("manager3_active", false)
+
+                sendSms(m1, msg)
+                if (m2Active) sendSms(m2, msg)
+                if (m3Active) sendSms(m3, msg)
+            }
+        }
+    }
+
+    private fun sendSms(phone: String?, message: String) {
+        if (!phone.isNullOrBlank()) {
+            try {
+                val smsManager = SmsManager.getDefault()
+                smsManager.sendTextMessage(phone, null, message, null, null)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            mqttClient?.disconnect()
+            mqttClient?.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}
