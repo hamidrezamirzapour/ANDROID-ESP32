@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#1A1D24"
     android:padding="16dp">
 
     <LinearLayout
@@ -9,40 +10,114 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="تنظیمات مدیران" android:textStyle="bold" android:textSize="18sp"/>
-        <EditText android:id="@+id/etManager1" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="شماره مدیر 1 (همیشه فعال)" android:inputType="phone"/>
-        
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-            <EditText android:id="@+id/etManager2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="شماره مدیر 2" android:inputType="phone"/>
-            <CheckBox android:id="@+id/cbManager2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="فعال"/>
-        </LinearLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TCP Socket &amp; SMS Settings"
+            android:textColor="#00D2D3"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-            <EditText android:id="@+id/etManager3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="شماره مدیر 3" android:inputType="phone"/>
-            <CheckBox android:id="@+id/cbManager3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="فعال"/>
-        </LinearLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="12dp"
+            android:background="#333A48" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="بازه دمای نرمال سنسورها (°C)" android:textStyle="bold" android:textSize="18sp" android:layout_marginTop="16dp"/>
-        
-        <!-- سنسور 1 -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="سنسور 1:  "/>
-            <EditText android:id="@+id/etS1Min" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداقل" android:inputType="numberDecimal"/>
-            <EditText android:id="@+id/etS1Max" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداکثر" android:inputType="numberDecimal"/>
-        </LinearLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ESP32 IP Address:"
+            android:textColor="#A0AAB8"
+            android:textSize="12sp" />
 
-        <!-- سنسور 2 -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="سنسور 2:  "/>
-            <EditText android:id="@+id/etS2Min" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداقل" android:inputType="numberDecimal"/>
-            <EditText android:id="@+id/etS2Max" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداکثر" android:inputType="numberDecimal"/>
-        </LinearLayout>
+        <EditText
+            android:id="@+id/etIpAddress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:background="#252932"
+            android:fontFamily="monospace"
+            android:hint="192.168.4.1"
+            android:inputType="textUri"
+            android:padding="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555E6D"
+            android:textSize="14sp" />
 
-        <!-- سنسور 3 -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="سنسور 3:  "/>
-            <EditText android:id="@+id/etS3Min" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداقل" android:inputType="numberDecimal"/>
-            <EditText android:id="@+id/etS3Max" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="حداکثر" android:inputType="numberDecimal"/>
-        </LinearLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TCP Port:"
+            android:textColor="#A0AAB8"
+            android:textSize="12sp" />
+
+        <EditText
+            android:id="@+id/etPort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:background="#252932"
+            android:fontFamily="monospace"
+            android:hint="8888"
+            android:inputType="number"
+            android:padding="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555E6D"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Temperature Alert Threshold (°C):"
+            android:textColor="#A0AAB8"
+            android:textSize="12sp" />
+
+        <EditText
+            android:id="@+id/etThreshold"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:background="#252932"
+            android:fontFamily="monospace"
+            android:hint="50.0"
+            android:inputType="numberDecimal"
+            android:padding="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555E6D"
+            android:textSize="14sp" />
+
+        <CheckBox
+            android:id="@+id/cbEnableSms"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:buttonTint="#00D2D3"
+            android:text="Enable SMS Warning Alerts"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Recipient Phone Number:"
+            android:textColor="#A0AAB8"
+            android:textSize="12sp" />
+
+        <EditText
+            android:id="@+id/etPhoneNumber"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:background="#252932"
+            android:fontFamily="monospace"
+            android:hint="+98912..."
+            android:inputType="phone"
+            android:padding="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555E6D"
+            android:textSize="14sp" />
+
     </LinearLayout>
 </ScrollView>
