@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- رنگ پس‌زمینه کارت (کمی روشن‌تر از پس‌زمینه اصلی) -->
+    <solid android:color="#2B3139" />
+    <!-- گوشه‌های گرد -->
+    <corners android:radius="12dp" />
+</shape>
