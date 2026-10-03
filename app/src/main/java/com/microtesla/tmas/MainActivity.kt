@@ -10,70 +10,67 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.telephony.SmsManager
 import android.util.Log
-import android.view.WindowManager
+import android.view.LayoutInflater
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.InputStream
 import java.net.Socket
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
+
     private lateinit var tvConnStatus: TextView
     private lateinit var tvSensor1: TextView
     private lateinit var tvSensor2: TextView
     private lateinit var tvSensor3: TextView
+    private lateinit var btnSettings: ImageView
+
     private lateinit var chart1: LineChart
     private lateinit var chart2: LineChart
     private lateinit var chart3: LineChart
 
-    private val maxEntries = 30
-    private var count1 = 0f
-    private var count2 = 0f
-    private var count3 = 0f
+    private var xValue = 0f
+    private val maxDataPoints = 30
 
-    private val espIp = "192.168.4.1"
+    // تنظیمات شبکه TCP
+    private val espIpAddress = "192.168.4.1"
     private val espPort = 8888
-    private var isRunning = false
-    private var socket: Socket? = null
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private var tcpSocket: Socket? = null
+    private var isTcpRunning = false
 
-    // --- متغیرهای تنظیمات و پیامک ---
-    private lateinit var prefs: SharedPreferences
-    private var phone1 = ""
-    private var phone2 = ""
-    private var phone3 = ""
-    private var isManager2Active = false
-    private var isManager3Active = false
-    private var thresh1 = 50.0f
-    private var thresh2 = 50.0f
-    private var thresh3 = 50.0f
-    private val smsCooldowns = mutableMapOf<Int, Long>()
-    private val COOLDOWN_MS = 60_000L // وقفه 1 دقیقه‌ای برای جلوگیری از ارسال رگباری پیامک
+    // SMS & Settings
+    private lateinit var sharedPrefs: SharedPreferences
+    private val SMS_PERMISSION_CODE = 101
+    
+    // Cooldown Logic
+    private var lastSmsTimeSensor1: Long = 0
+    private var lastSmsTimeSensor2: Long = 0
+    private var lastSmsTimeSensor3: Long = 0
+    private val SMS_COOLDOWN_MS: Long = 60000 // 60 seconds
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        )
         setContentView(R.layout.activity_main)
+
+        sharedPrefs = getSharedPreferences("TMAS_CONFIG", Context.MODE_PRIVATE)
 
         tvConnStatus = findViewById(R.id.tvConnStatus)
         tvSensor1 = findViewById(R.id.tvSensor1)
         tvSensor2 = findViewById(R.id.tvSensor2)
         tvSensor3 = findViewById(R.id.tvSensor3)
+        btnSettings = findViewById(R.id.btnSettings)
+
         chart1 = findViewById(R.id.chart1)
         chart2 = findViewById(R.id.chart2)
         chart3 = findViewById(R.id.chart3)
@@ -82,274 +79,301 @@ class MainActivity : AppCompatActivity() {
         setupChart(chart2, Color.parseColor("#10AC84"))
         setupChart(chart3, Color.parseColor("#FF6B6B"))
 
-        // بارگذاری تنظیمات ذخیره شده
-        prefs = getSharedPreferences("TMAS_CONFIG", Context.MODE_PRIVATE)
-        loadConfig()
+        // Bind network to WiFi to bypass mobile data routing issue
+        bindToWifi()
 
-        // درخواست دسترسی ارسال پیامک در زمان اجرای برنامه
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 101)
-        }
-
-        // دکمه تنظیمات (از روی activity_main.xml پیدا می‌شود)
-        findViewById<Button>(R.id.btnSettings).setOnClickListener {
+        // کلیک روی دکمه تنظیمات
+        btnSettings.setOnClickListener {
             showConfigDialog()
         }
 
-        // قفل کردن شبکه روی وای‌فای و شروع کلاینت TCP
-        bindToWiFiAndConnect()
+        // درخواست دسترسی SMS
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), SMS_PERMISSION_CODE)
+        }
     }
 
-    private fun loadConfig() {
-        phone1 = prefs.getString("PHONE_1", "") ?: ""
-        phone2 = prefs.getString("PHONE_2", "") ?: ""
-        phone3 = prefs.getString("PHONE_3", "") ?: ""
-        isManager2Active = prefs.getBoolean("MGR_2_ACTIVE", false)
-        isManager3Active = prefs.getBoolean("MGR_3_ACTIVE", false)
-        thresh1 = prefs.getFloat("THRESH_1", 50.0f)
-        thresh2 = prefs.getFloat("THRESH_2", 50.0f)
-        thresh3 = prefs.getFloat("THRESH_3", 50.0f)
-    }
-
-    // این تابع مشکل عبور ترافیک از دیتای سیم‌کارت را حل می‌کند
-    private fun bindToWiFiAndConnect() {
-        updateStatus("Binding to WiFi...", Color.parseColor("#FFA500"))
+    private fun bindToWifi() {
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val request = NetworkRequest.Builder()
+        val networkRequest = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
 
-        connectivityManager.requestNetwork(request, object : ConnectivityManager.NetworkCallback() {
+        connectivityManager.requestNetwork(networkRequest, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                // ترافیک سوکت را مجبور می‌کند فقط از روی وای‌فای رد شود
+                super.onAvailable(network)
                 connectivityManager.bindProcessToNetwork(network)
-                mainHandler.post { startTcpClient() }
+                Log.d("Network", "Bound to WiFi network")
+                startTcpClient() // اتصال بعد از بایند شدن به وای‌فای
+            }
+
+            override fun onLost(network: Network) {
+                super.onLost(network)
+                Log.d("Network", "WiFi network lost")
+                updateConnectionStatus("Disconnected", Color.parseColor("#FF6B6B"))
+                isTcpRunning = false
             }
         })
     }
 
-    private fun setupChart(chart: LineChart, color: Int) {
-        val dataSet = LineDataSet(mutableListOf(), "").apply {
-            this.color = color
-            setDrawCircles(false)
-            setDrawValues(false)
-            lineWidth = 2f
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-        }
-        chart.data = LineData(dataSet)
-        chart.description.isEnabled = false
-        chart.legend.isEnabled = false
-        chart.axisRight.isEnabled = false
-        chart.xAxis.setDrawLabels(false)
-        chart.axisLeft.apply {
-            textColor = Color.WHITE
-            setDrawGridLines(false)
-        }
-        chart.invalidate()
-    }
-
-    private fun addEntryToChart(chart: LineChart, x: Float, y: Float) {
-        val data = chart.data ?: return
-        val set = data.getDataSetByIndex(0) ?: return
-        data.addEntry(Entry(x, y), 0)
-        if (set.entryCount > maxEntries) {
-            set.removeFirst()
-        }
-        data.notifyDataChanged()
-        chart.notifyDataSetChanged()
-        chart.setVisibleXRangeMaximum(maxEntries.toFloat())
-        chart.moveViewToX(x)
-    }
-
     private fun startTcpClient() {
-        if (isRunning) return
-        isRunning = true
-        updateStatus("Connecting...", Color.parseColor("#FFA500"))
-
-        Thread {
-            while (isRunning) {
-                try {
-                    socket = Socket(espIp, espPort)
-                    socket?.soTimeout = 5000
-                    updateStatus("Connected (TCP)", Color.GREEN)
-
-                    val reader = BufferedReader(InputStreamReader(socket?.getInputStream()))
-                    var line: String?
-
-                    while (isRunning) {
-                        line = reader.readLine()
-                        if (line != null) {
-                            parseIncomingData(line)
-                        } else {
-                            break
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("TCP_CLIENT", "Error: ${e.message}")
-                    updateStatus("Disconnected", Color.RED)
-                } finally {
-                    try { socket?.close() } catch (_: Exception) {}
-                }
+        if (isTcpRunning) return
+        isTcpRunning = true
+        
+        thread {
+            try {
+                runOnUiThread { updateConnectionStatus("Connecting...", Color.parseColor("#FF9F43")) }
+                tcpSocket = Socket(espIpAddress, espPort)
+                runOnUiThread { updateConnectionStatus("● Live TCP", Color.parseColor("#10AC84")) }
                 
-                // در صورت قطعی 3 ثانیه صبر می‌کند و دوباره متصل می‌شود
-                if (isRunning) {
-                    Thread.sleep(3000)
+                val inputStream: InputStream = tcpSocket!!.getInputStream()
+                val buffer = ByteArray(1024)
+                
+                while (isTcpRunning && tcpSocket?.isConnected == true) {
+                    val bytesRead = inputStream.read(buffer)
+                    if (bytesRead != -1) {
+                        val message = String(buffer, 0, bytesRead).trim()
+                        if (message.isNotEmpty()) {
+                            parseJsonMessage(message)
+                        }
+                    } else {
+                        break // Connection closed
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isTcpRunning = false
+                try { tcpSocket?.close() } catch (e: Exception) {}
+                runOnUiThread { 
+                    updateConnectionStatus("Disconnected", Color.parseColor("#FF6B6B")) 
+                }
+                // تلاش مجدد بعد از 3 ثانیه
+                Thread.sleep(3000)
+                if(!isDestroyed) startTcpClient()
             }
-        }.start()
+        }
     }
 
-    private fun parseIncomingData(data: String) {
-        var val1: Float? = null
-        var val2: Float? = null
-        var val3: Float? = null
+    private fun updateConnectionStatus(text: String, color: Int) {
+        tvConnStatus.text = text
+        tvConnStatus.setTextColor(color)
+    }
 
-        try {
-            val trimmed = data.trim()
-            if (trimmed.startsWith("{")) {
-                val json = JSONObject(trimmed)
-                if (json.has("s1")) val1 = json.getDouble("s1").toFloat()
-                if (json.has("s2")) val2 = json.getDouble("s2").toFloat()
-                if (json.has("s3")) val3 = json.getDouble("s3").toFloat()
-            } else {
-                val parts = trimmed.split(" | ")
-                for (part in parts) {
-                    val p = part.trim()
-                    if (p.startsWith("T1:")) val1 = p.replace("T1:", "").replace("C", "").trim().toFloatOrNull()
-                    else if (p.startsWith("T2:")) val2 = p.replace("T2:", "").replace("C", "").trim().toFloatOrNull()
-                    else if (p.startsWith("T3:")) val3 = p.replace("T3:", "").replace("C", "").trim().toFloatOrNull()
-                }
+    private fun setupChart(chart: LineChart, lineColor: Int) {
+        chart.apply {
+            description.isEnabled = false
+            setTouchEnabled(false)
+            isDragEnabled = false
+            setScaleEnabled(false)
+            setDrawGridBackground(false)
+            
+            xAxis.apply {
+                position = XAxis.XAxisPosition.BOTTOM
+                setDrawGridLines(false)
+                textColor = Color.WHITE
             }
+            
+            axisLeft.apply {
+                textColor = Color.WHITE
+                setDrawGridLines(true)
+                axisMinimum = 0f
+            }
+            axisRight.isEnabled = false
+            legend.isEnabled = false
 
-            mainHandler.post {
-                val1?.let {
-                    tvSensor1.text = String.format("%.2f °C", it)
-                    addEntryToChart(chart1, count1++, it)
-                    checkThresholdAndSms(1, it, thresh1)
-                }
-                val2?.let {
-                    tvSensor2.text = String.format("%.2f °C", it)
-                    addEntryToChart(chart2, count2++, it)
-                    checkThresholdAndSms(2, it, thresh2)
-                }
-                val3?.let {
-                    tvSensor3.text = String.format("%.2f °C", it)
-                    addEntryToChart(chart3, count3++, it)
-                    checkThresholdAndSms(3, it, thresh3)
+            data = LineData(LineDataSet(ArrayList<Entry>(), "").apply {
+                color = lineColor
+                setDrawCircles(false)
+                lineWidth = 2f
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+            })
+        }
+    }
+
+    private fun parseJsonMessage(message: String) {
+        try {
+            // ممکن است چندین JSON پشت هم بیاید، پردازش آخرین مورد
+            val jsonParts = message.split("\n").filter { it.isNotBlank() }
+            for (part in jsonParts) {
+                val jsonObject = JSONObject(part)
+                val temp1 = jsonObject.optDouble("temp1", 0.0)
+                val temp2 = jsonObject.optDouble("temp2", 0.0)
+                val temp3 = jsonObject.optDouble("temp3", 0.0)
+
+                runOnUiThread {
+                    tvSensor1.text = String.format("%.2f °C", temp1)
+                    tvSensor2.text = String.format("%.2f °C", temp2)
+                    tvSensor3.text = String.format("%.2f °C", temp3)
+
+                    addEntryToChart(chart1, temp1.toFloat())
+                    addEntryToChart(chart2, temp2.toFloat())
+                    addEntryToChart(chart3, temp3.toFloat())
+                    
+                    xValue++
+                    checkThresholdsAndAlert(temp1, temp2, temp3)
                 }
             }
         } catch (e: Exception) {
-            Log.e("DATA_PARSE", "Error parsing: $data", e)
+            e.printStackTrace()
         }
     }
 
-    private fun checkThresholdAndSms(sensorId: Int, value: Float, threshold: Float) {
-        if (value > threshold) {
-            val now = System.currentTimeMillis()
-            val lastSent = smsCooldowns[sensorId] ?: 0L
-            // بررسی Cooldown (ارسال پیامک با محدودیت زمانی برای جلوگیری از اسپم)
-            if (now - lastSent > COOLDOWN_MS) {
-                sendSmsAlert(sensorId, value)
-                smsCooldowns[sensorId] = now
+    private fun addEntryToChart(chart: LineChart, value: Float) {
+        val data = chart.data
+        if (data != null) {
+            var set = data.getDataSetByIndex(0)
+            if (set == null) {
+                set = LineDataSet(ArrayList<Entry>(), "")
+                data.addDataSet(set)
             }
+            
+            data.addEntry(Entry(xValue, value), 0)
+            data.notifyDataChanged()
+            chart.notifyDataSetChanged()
+            chart.setVisibleXRangeMaximum(maxDataPoints.toFloat())
+            chart.moveViewToX(data.entryCount.toFloat())
         }
     }
 
-    private fun sendSmsAlert(sensorId: Int, value: Float) {
-        val msg = "هشدار سیستم TMAS\nسنسور $sensorId از حد مجاز عبور کرد!\nدما: $value °C"
+    // منطق بررسی آستانه دما و ارسال پیامک
+    private fun checkThresholdsAndAlert(t1: Double, t2: Double, t3: Double) {
+        val thr1 = sharedPrefs.getFloat("threshold1", 50.0f).toDouble()
+        val thr2 = sharedPrefs.getFloat("threshold2", 50.0f).toDouble()
+        val thr3 = sharedPrefs.getFloat("threshold3", 50.0f).toDouble()
+
+        val currentTime = System.currentTimeMillis()
+
+        if (t1 > thr1 && (currentTime - lastSmsTimeSensor1 > SMS_COOLDOWN_MS)) {
+            sendSmsAlert("سنسور 1", t1)
+            lastSmsTimeSensor1 = currentTime
+        }
+        if (t2 > thr2 && (currentTime - lastSmsTimeSensor2 > SMS_COOLDOWN_MS)) {
+            sendSmsAlert("سنسور 2", t2)
+            lastSmsTimeSensor2 = currentTime
+        }
+        if (t3 > thr3 && (currentTime - lastSmsTimeSensor3 > SMS_COOLDOWN_MS)) {
+            sendSmsAlert("سنسور 3", t3)
+            lastSmsTimeSensor3 = currentTime
+        }
+    }
+
+    private fun sendSmsAlert(sensorName: String, temp: Double) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        val phone1 = sharedPrefs.getString("phone1", "")
+        val phone2 = sharedPrefs.getString("phone2", "")
+        val phone3 = sharedPrefs.getString("phone3", "")
+
+        val enableAdmin2 = sharedPrefs.getBoolean("enable_admin2", false)
+        val enableAdmin3 = sharedPrefs.getBoolean("enable_admin3", false)
+
+        val message = "هشدار TMAS: دمای $sensorName از حد مجاز عبور کرد! دمای فعلی: ${String.format("%.1f", temp)} درجه."
+
+        val smsManager = SmsManager.getDefault()
         try {
-            val smsManager = SmsManager.getDefault()
-            if (phone1.isNotEmpty()) {
-                smsManager.sendTextMessage(phone1, null, msg, null, null)
-            }
-            if (isManager2Active && phone2.isNotEmpty()) {
-                smsManager.sendTextMessage(phone2, null, msg, null, null)
-            }
-            if (isManager3Active && phone3.isNotEmpty()) {
-                smsManager.sendTextMessage(phone3, null, msg, null, null)
-            }
-            Toast.makeText(this, "پیامک هشدار برای سنسور $sensorId ارسال شد", Toast.LENGTH_SHORT).show()
+            if (!phone1.isNullOrEmpty()) smsManager.sendTextMessage(phone1, null, message, null, null)
+            if (enableAdmin2 && !phone2.isNullOrEmpty()) smsManager.sendTextMessage(phone2, null, message, null, null)
+            if (enableAdmin3 && !phone3.isNullOrEmpty()) smsManager.sendTextMessage(phone3, null, message, null, null)
+            
+            Toast.makeText(this, "SMS Alert Sent!", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Log.e("SMS_SENDER", "Failed to send SMS", e)
+            e.printStackTrace()
         }
     }
 
-    // ساخت دیالوگ تنظیمات (تنظیم شماره‌ها و آستانه‌ها) از طریق کد
+    // دیالوگ تنظیمات داینامیک بدون نیاز به فایل XML خارجی
     private fun showConfigDialog() {
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("تنظیمات هشدار و مدیران")
-
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(40, 20, 40, 20)
+            setPadding(50, 40, 50, 40)
         }
 
-        // بخش تنظیم آستانه‌ها
-        val etT1 = EditText(this).apply { hint = "آستانه سنسور 1 (°C)"; setText(thresh1.toString()) }
-        val etT2 = EditText(this).apply { hint = "آستانه سنسور 2 (°C)"; setText(thresh2.toString()) }
-        val etT3 = EditText(this).apply { hint = "آستانه سنسور 3 (°C)"; setText(thresh3.toString()) }
-        layout.addView(TextView(this).apply { text = "آستانه دما (°C):"; setPadding(0,10,0,0) })
-        layout.addView(etT1); layout.addView(etT2); layout.addView(etT3)
+        // --- Manager 1 ---
+        val etPhone1 = EditText(this).apply {
+            hint = "Manager 1 Phone"
+            setText(sharedPrefs.getString("phone1", ""))
+        }
+        layout.addView(etPhone1)
 
-        // بخش تنظیم شماره مدیران
-        layout.addView(TextView(this).apply { text = "شماره مدیران:"; setPadding(0,20,0,0) })
-        
-        val etP1 = EditText(this).apply { hint = "مدیر 1 (همیشه فعال)"; setText(phone1) }
-        layout.addView(etP1)
+        // --- Manager 2 ---
+        val cbAdmin2 = CheckBox(this).apply {
+            text = "Enable Manager 2"
+            isChecked = sharedPrefs.getBoolean("enable_admin2", false)
+        }
+        val etPhone2 = EditText(this).apply {
+            hint = "Manager 2 Phone"
+            setText(sharedPrefs.getString("phone2", ""))
+        }
+        layout.addView(cbAdmin2)
+        layout.addView(etPhone2)
 
-        val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val etP2 = EditText(this).apply { hint = "مدیر 2"; setText(phone2); layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
-        val cbM2 = CheckBox(this).apply { text = "فعال"; isChecked = isManager2Active }
-        row2.addView(etP2); row2.addView(cbM2)
-        layout.addView(row2)
+        // --- Manager 3 ---
+        val cbAdmin3 = CheckBox(this).apply {
+            text = "Enable Manager 3"
+            isChecked = sharedPrefs.getBoolean("enable_admin3", false)
+        }
+        val etPhone3 = EditText(this).apply {
+            hint = "Manager 3 Phone"
+            setText(sharedPrefs.getString("phone3", ""))
+        }
+        layout.addView(cbAdmin3)
+        layout.addView(etPhone3)
 
-        val row3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val etP3 = EditText(this).apply { hint = "مدیر 3"; setText(phone3); layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
-        val cbM3 = CheckBox(this).apply { text = "فعال"; isChecked = isManager3Active }
-        row3.addView(etP3); row3.addView(cbM3)
-        layout.addView(row3)
+        // --- Thresholds ---
+        val tvThr = TextView(this).apply {
+            text = "\nTemperature Thresholds (°C)"
+            setTextColor(Color.BLACK)
+            textSize = 16f
+        }
+        layout.addView(tvThr)
 
-        val scroll = ScrollView(this).apply { addView(layout) }
-        builder.setView(scroll)
+        val etThr1 = EditText(this).apply {
+            hint = "Sensor 1 Max Temp"
+            setText(sharedPrefs.getFloat("threshold1", 50.0f).toString())
+        }
+        val etThr2 = EditText(this).apply {
+            hint = "Sensor 2 Max Temp"
+            setText(sharedPrefs.getFloat("threshold2", 50.0f).toString())
+        }
+        val etThr3 = EditText(this).apply {
+            hint = "Sensor 3 Max Temp"
+            setText(sharedPrefs.getFloat("threshold3", 50.0f).toString())
+        }
+        layout.addView(etThr1)
+        layout.addView(etThr2)
+        layout.addView(etThr3)
 
-        builder.setPositiveButton("ذخیره") { _, _ ->
-            // استخراج و ذخیره مقادیر وارد شده
-            thresh1 = etT1.text.toString().toFloatOrNull() ?: 50.0f
-            thresh2 = etT2.text.toString().toFloatOrNull() ?: 50.0f
-            thresh3 = etT3.text.toString().toFloatOrNull() ?: 50.0f
-            phone1 = etP1.text.toString()
-            phone2 = etP2.text.toString()
-            phone3 = etP3.text.toString()
-            isManager2Active = cbM2.isChecked
-            isManager3Active = cbM3.isChecked
+        // --- Dialog Builder ---
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("System Configuration")
+        builder.setView(layout)
+        builder.setPositiveButton("Save") { _, _ ->
+            sharedPrefs.edit().apply {
+                putString("phone1", etPhone1.text.toString())
+                putString("phone2", etPhone2.text.toString())
+                putString("phone3", etPhone3.text.toString())
 
-            prefs.edit().apply {
-                putFloat("THRESH_1", thresh1)
-                putFloat("THRESH_2", thresh2)
-                putFloat("THRESH_3", thresh3)
-                putString("PHONE_1", phone1)
-                putString("PHONE_2", phone2)
-                putString("PHONE_3", phone3)
-                putBoolean("MGR_2_ACTIVE", isManager2Active)
-                putBoolean("MGR_3_ACTIVE", isManager3Active)
+                putBoolean("enable_admin2", cbAdmin2.isChecked)
+                putBoolean("enable_admin3", cbAdmin3.isChecked)
+
+                putFloat("threshold1", etThr1.text.toString().toFloatOrNull() ?: 50.0f)
+                putFloat("threshold2", etThr2.text.toString().toFloatOrNull() ?: 50.0f)
+                putFloat("threshold3", etThr3.text.toString().toFloatOrNull() ?: 50.0f)
+
                 apply()
             }
-            Toast.makeText(this, "تنظیمات ذخیره شد", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Settings Saved", Toast.LENGTH_SHORT).show()
         }
-        builder.setNegativeButton("لغو", null)
+        builder.setNegativeButton("Cancel", null)
         builder.show()
-    }
-
-    private fun updateStatus(text: String, color: Int) {
-        mainHandler.post {
-            tvConnStatus.text = text
-            tvConnStatus.setTextColor(color)
-        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false
-        try { socket?.close() } catch (_: Exception) {}
+        isTcpRunning = false
+        try { tcpSocket?.close() } catch (e: Exception) {}
     }
 }
