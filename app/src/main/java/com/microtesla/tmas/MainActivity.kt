@@ -1,20 +1,18 @@
 package com.microtesla.tmas
 
-import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.LayoutInflater
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.Switch
 import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.Socket
@@ -22,78 +20,97 @@ import java.net.Socket
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tvConnStatus: TextView
-    private lateinit var tvTemp1: TextView
-    private lateinit var tvTemp2: TextView
-    private lateinit var tvTemp3: TextView
-    private lateinit var tvStatus1: TextView
-    private lateinit var tvStatus2: TextView
-    private lateinit var tvStatus3: TextView
+    private lateinit var tvSensor1: TextView
+    private lateinit var tvSensor2: TextView
+    private lateinit var tvSensor3: TextView
 
-    private lateinit var btnSettings: Button
+    private lateinit var chart1: LineChart
+    private lateinit var chart2: LineChart
+    private lateinit var chart3: LineChart
 
-    private var serverIp = "192.168.4.1"
-    private var serverPort = 8888
-    private var alarmThreshold = 50.0f
-    private var smsEnabled = false
-    private var smsNumber = ""
+    private val maxEntries = 30
+    private var count1 = 0f
+    private var count2 = 0f
+    private var count3 = 0f
+
+    private val espIp = "192.168.4.1"
+    private val espPort = 8888
 
     private var isRunning = false
     private var socket: Socket? = null
-
-    // Handler برای اجرای کدهای UI از داخل Thread
-    private val uiHandler = Handler(Looper.getMainLooper())
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // پنهان کردن نوار اعلانات و حالت تمام صفحه
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
         setContentView(R.layout.activity_main)
 
-        // متصل کردن متغیرها به المان‌های صفحه
         tvConnStatus = findViewById(R.id.tvConnStatus)
-        tvTemp1 = findViewById(R.id.tvTemp1)
-        tvTemp2 = findViewById(R.id.tvTemp2)
-        tvTemp3 = findViewById(R.id.tvTemp3)
-        tvStatus1 = findViewById(R.id.tvStatus1)
-        tvStatus2 = findViewById(R.id.tvStatus2)
-        tvStatus3 = findViewById(R.id.tvStatus3)
+        tvSensor1 = findViewById(R.id.tvSensor1)
+        tvSensor2 = findViewById(R.id.tvSensor2)
+        tvSensor3 = findViewById(R.id.tvSensor3)
 
-        btnSettings = findViewById(R.id.btnSettings)
+        chart1 = findViewById(R.id.chart1)
+        chart2 = findViewById(R.id.chart2)
+        chart3 = findViewById(R.id.chart3)
 
-        // بارگذاری تنظیمات ذخیره شده (در صورت وجود)
-        loadSettings()
+        setupChart(chart1, Color.parseColor("#00D2D3"))
+        setupChart(chart2, Color.parseColor("#10AC84"))
+        setupChart(chart3, Color.parseColor("#FF6B6B"))
 
-        btnSettings.setOnClickListener {
-            showSettingsDialog()
-        }
-
-        // شروع اتصال TCP
         startTcpClient()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        stopTcpClient()
+    private fun setupChart(chart: LineChart, color: Int) {
+        val dataSet = LineDataSet(mutableListOf(), "").apply {
+            this.color = color
+            lineWidth = 2f
+            setDrawCircles(false)
+            setDrawValues(false)
+            mode = LineDataSet.Mode.CUBIC_BEZIER
+        }
+        chart.data = LineData(dataSet)
+        chart.description.isEnabled = false
+        chart.legend.isEnabled = false
+        chart.xAxis.isEnabled = false
+        chart.axisRight.isEnabled = false
+        chart.axisLeft.apply {
+            textColor = Color.LTGRAY
+            gridColor = Color.DKGRAY
+        }
+        chart.invalidate()
+    }
+
+    private fun addEntryToChart(chart: LineChart, x: Float, y: Float) {
+        val data = chart.data ?: return
+        val set = data.getDataSetByIndex(0) ?: return
+
+        data.addEntry(Entry(x, y), 0)
+        if (set.entryCount > maxEntries) {
+            set.removeFirst()
+        }
+        data.notifyDataChanged()
+        chart.notifyDataSetChanged()
+        chart.setVisibleXRangeMaximum(maxEntries.toFloat())
+        chart.moveViewToX(x)
     }
 
     private fun startTcpClient() {
         if (isRunning) return
         isRunning = true
 
-        updateConnectionStatus("Connecting...", Color.parseColor("#FFA500")) // نارنجی
+        updateStatus("Connecting...", Color.parseColor("#FFA500"))
 
         Thread {
             while (isRunning) {
                 try {
-                    socket = Socket(serverIp, serverPort)
-                    socket?.soTimeout = 5000 // تایم اوت ۵ ثانیه
+                    socket = Socket(espIp, espPort)
+                    socket?.soTimeout = 5000
 
-                    uiHandler.post {
-                        updateConnectionStatus("Connected", Color.GREEN)
-                    }
+                    updateStatus("Connected (TCP)", Color.GREEN)
 
                     val reader = BufferedReader(InputStreamReader(socket?.getInputStream()))
                     var line: String?
@@ -101,29 +118,21 @@ class MainActivity : AppCompatActivity() {
                     while (isRunning && socket?.isConnected == true) {
                         line = reader.readLine()
                         if (line != null) {
-                            Log.d("TCP_CLIENT", "Received: $line")
-                            parseData(line)
+                            parseIncomingData(line)
                         } else {
-                            // قطع اتصال از سمت سرور
                             break
                         }
                     }
-
                 } catch (e: Exception) {
                     Log.e("TCP_CLIENT", "Error: ${e.message}")
-                    uiHandler.post {
-                        updateConnectionStatus("Disconnected / Retrying...", Color.RED)
-                    }
+                    updateStatus("Disconnected", Color.RED)
                 } finally {
                     try {
                         socket?.close()
                         socket = null
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    } catch (_: Exception) {}
                 }
 
-                // در صورت قطع شدن، ۳ ثانیه صبر کرده و مجدد تلاش می‌کند
                 if (isRunning) {
                     Thread.sleep(3000)
                 }
@@ -131,137 +140,65 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun stopTcpClient() {
-        isRunning = false
+    private fun parseIncomingData(data: String) {
         try {
-            socket?.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+            var val1: Float? = null
+            var val2: Float? = null
+            var val3: Float? = null
 
-    private fun parseData(data: String) {
-        // نمونه داده دریافتی: T1:25.5C|T2:26.0C|T3:24.8C
-        // یا هر فرمت دیگری که در ESP32 مشخص کرده‌اید.
-        try {
-            val parts = data.split("|")
-            var t1Str = "--"
-            var t2Str = "--"
-            var t3Str = "--"
-
-            for (part in parts) {
-                if (part.startsWith("T1:")) {
-                    t1Str = part.replace("T1:", "").replace("C", "").trim()
-                } else if (part.startsWith("T2:")) {
-                    t2Str = part.replace("T2:", "").replace("C", "").trim()
-                } else if (part.startsWith("T3:")) {
-                    t3Str = part.replace("T3:", "").replace("C", "").trim()
+            val trimmed = data.trim()
+            if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                // قالب JSON مانند: {"s1": 25.4, "s2": 26.1, "s3": 24.8}
+                val json = JSONObject(trimmed)
+                if (json.has("s1")) val1 = json.getDouble("s1").toFloat()
+                if (json.has("s2")) val2 = json.getDouble("s2").toFloat()
+                if (json.has("s3")) val3 = json.getDouble("s3").toFloat()
+            } else {
+                // قالب خطی متنی مانند: T1:25.5C|T2:26.0C|T3:24.8C
+                val parts = trimmed.split("|")
+                for (part in parts) {
+                    val p = part.trim()
+                    if (p.startsWith("T1:")) {
+                        val1 = p.replace("T1:", "").replace("C", "").trim().toFloatOrNull()
+                    } else if (p.startsWith("T2:")) {
+                        val2 = p.replace("T2:", "").replace("C", "").trim().toFloatOrNull()
+                    } else if (p.startsWith("T3:")) {
+                        val3 = p.replace("T3:", "").replace("C", "").trim().toFloatOrNull()
+                    }
                 }
             }
 
-            uiHandler.post {
-                updateSensorUI(tvTemp1, tvStatus1, t1Str)
-                updateSensorUI(tvTemp2, tvStatus2, t2Str)
-                updateSensorUI(tvTemp3, tvStatus3, t3Str)
+            mainHandler.post {
+                val1?.let {
+                    tvSensor1.text = String.format("%.2f °C", it)
+                    addEntryToChart(chart1, count1++, it)
+                }
+                val2?.let {
+                    tvSensor2.text = String.format("%.2f °C", it)
+                    addEntryToChart(chart2, count2++, it)
+                }
+                val3?.let {
+                    tvSensor3.text = String.format("%.2f °C", it)
+                    addEntryToChart(chart3, count3++, it)
+                }
             }
         } catch (e: Exception) {
-            Log.e("DATA_PARSE", "Error parsing data: $data", e)
+            Log.e("DATA_PARSE", "Error parsing: $data", e)
         }
     }
 
-    private fun updateSensorUI(tvTemp: TextView, tvStatus: TextView, valueStr: String) {
-        tvTemp.text = "$valueStr °C"
-
-        val tempVal = valueStr.toFloatOrNull()
-        if (tempVal != null) {
-            if (tempVal >= alarmThreshold) {
-                tvStatus.text = "ALARM"
-                tvStatus.setTextColor(Color.RED)
-            } else {
-                tvStatus.text = "NORMAL"
-                tvStatus.setTextColor(Color.GREEN)
-            }
-        } else {
-            tvStatus.text = "ERROR"
-            tvStatus.setTextColor(Color.GRAY)
+    private fun updateStatus(text: String, color: Int) {
+        mainHandler.post {
+            tvConnStatus.text = text
+            tvConnStatus.setTextColor(color)
         }
     }
 
-    private fun updateConnectionStatus(text: String, color: Int) {
-        tvConnStatus.text = text
-        tvConnStatus.setTextColor(color)
-    }
-
-    private fun loadSettings() {
-        val sharedPref = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
-        serverIp = sharedPref.getString("IP", "192.168.4.1") ?: "192.168.4.1"
-        serverPort = sharedPref.getInt("PORT", 8888)
-        alarmThreshold = sharedPref.getFloat("ALARM", 50.0f)
-        smsEnabled = sharedPref.getBoolean("SMS_EN", false)
-        smsNumber = sharedPref.getString("SMS_NUM", "") ?: ""
-    }
-
-    private fun saveSettings(ip: String, port: Int, alarm: Float, smsEn: Boolean, smsNum: String) {
-        val sharedPref = getSharedPreferences("TMAS_PREFS", Context.MODE_PRIVATE)
-        with(sharedPref.edit()) {
-            putString("IP", ip)
-            putInt("PORT", port)
-            putFloat("ALARM", alarm)
-            putBoolean("SMS_EN", smsEn)
-            putString("SMS_NUM", smsNum)
-            apply()
-        }
-        
-        // به روز رسانی متغیرهای حافظه
-        serverIp = ip
-        serverPort = port
-        alarmThreshold = alarm
-        smsEnabled = smsEn
-        smsNumber = smsNum
-        
-        Toast.makeText(this, "Settings Saved. Reconnecting...", Toast.LENGTH_SHORT).show()
-
-        // ری‌استارت کردن کلاینت برای اعمال IP/Port جدید
-        stopTcpClient()
-        startTcpClient()
-    }
-
-    private fun showSettingsDialog() {
-        // ایجاد AlertDialog با تم پیش‌فرض اندروید (رفع خطای Unresolved reference)
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Settings")
-
-        val view = LayoutInflater.from(this).inflate(R.layout.dialog_settings, null)
-        builder.setView(view)
-
-        val etIp = view.findViewById<EditText>(R.id.etIp)
-        val etPort = view.findViewById<EditText>(R.id.etPort)
-        val etAlarm = view.findViewById<EditText>(R.id.etAlarm)
-        val swSms = view.findViewById<Switch>(R.id.swSms)
-        val etPhone = view.findViewById<EditText>(R.id.etPhone)
-
-        // پر کردن مقادیر فعلی
-        etIp.setText(serverIp)
-        etPort.setText(serverPort.toString())
-        etAlarm.setText(alarmThreshold.toString())
-        swSms.isChecked = smsEnabled
-        etPhone.setText(smsNumber)
-
-        builder.setPositiveButton("Save") { dialog, _ ->
-            val ip = etIp.text.toString().trim()
-            val port = etPort.text.toString().toIntOrNull() ?: 8888
-            val alarm = etAlarm.text.toString().toFloatOrNull() ?: 50.0f
-            val smsEn = swSms.isChecked
-            val phone = etPhone.text.toString().trim()
-
-            saveSettings(ip, port, alarm, smsEn, phone)
-            dialog.dismiss()
-        }
-
-        builder.setNegativeButton("Cancel") { dialog, _ ->
-            dialog.dismiss()
-        }
-
-        builder.show()
+    override fun onDestroy() {
+        super.onDestroy()
+        isRunning = false
+        try {
+            socket?.close()
+        } catch (_: Exception) {}
     }
 }
